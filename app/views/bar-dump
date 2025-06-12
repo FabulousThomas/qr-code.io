@@ -1,0 +1,149 @@
+<?php
+include APPROOT . "/views/inc/head.php";
+
+$randNumber = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_REQUEST['getBarcode'])) {
+        // Set default barcode data if no form input is provided
+        $randNumber = random_int(111111111111, 999999999999);
+        $barcodeData = $_REQUEST['barcode'] ?? $randNumber;
+
+        if (isset($_REQUEST['barcodeImage'])) {
+            $barcodeImage = $_REQUEST['barcodeImage'];
+
+            // Decode the base64 image data and save it to a folder
+            //     $filePath = 'images/barimage/' . $barcodeData . '.png';
+            //     $barcodeImage = str_replace('data:image/png;base64,', '', $barcodeImage);
+            //     $barcodeImage = str_replace(' ', '+', $barcodeImage);
+            //     $imageData = base64_decode($barcodeImage);
+            //     file_put_contents($filePath, $imageData);
+            // } else {
+            //     echo "Error: Barcode image data is missing.";
+        }
+    }
+}
+?>
+
+
+<body>
+    <!-- NAVBAR -->
+    <?php include APPROOT . "/views/inc/navbar.php"; ?>
+
+
+    <div class="container mt-5 text-">
+        <h3 class="text-center mb-4">Dynamic Barcode Generator</h3>
+        <p class="text-center">To generate a barcode, enter the desired data in the input field.</p>
+
+        <div class="row shadow rounded-0 dark-box mt-5 p-lg-3 p-md-1">
+            <div class="col-lg-8 col-md-12 dark-box">
+                <div class="card rounded-0 my- border-0 bg-transparent">
+                    <div class="card-body pt-">
+                        <!-- <form method="POST" autocomplete="off" id="barcodeForm"> -->
+                            <div class="mb-3">
+                                <label for="" class="form-label mb-1">Barcode Content</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control shadow-none border rounded-end-0" name="barcodeValue" id="barcodeValue" placeholder="Enter barcode content Or Get random number" required>
+                                    <button class="btn btn-green rounded-start-0" type="submit" name="generateRandom" id="generateRandom"><i class="las la-random" style="font-size: 1.3rem;"></i></button>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <input type="text" name="qrSubject" id="qrSubject" class="form-control shadow-none border" placeholder="E&dash;mail Subject"  />
+                            </div>
+                            <div class="mb-3">
+                                <textarea name="qrMessage" id="qrMessage" class="form-control shadow-none border" placeholder="Your Message" ></textarea>
+                                <small class="text-black-50">Scanning the QR code will send this e&dash;mail</small>
+                            </div>
+                            <div class="mb-">
+                                <button type="submit" class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i class="las la-plus-square" style="font-size: 1.1rem;"></i> Generate</button>
+                            </div>
+                        <!-- </form> -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4 col-md-12 sticky-top p-0 bg-light">
+                <div class="card rounded-0 rounded-end border-0 bg-light">
+                    <div class="card-body text-center">
+                        
+                            <h5 class="text-center">Generated QR Code</h5>
+                            <img id="barcode" class="barcode" src="images/barimage/00000.png" alt="QR Code" class="img-fluid" style="width: 250px;">
+                            <div class="d-flex justify-content-center mt-2">
+                                <a id="download" class="btn btn-orange rounded-0" download="qrcode.png">
+                                    <i class="las la-download las-sm"></i> Download Barcode
+                                </a>
+                            </div>
+
+                            <div class="d-flex justify-content-center mt-2">
+                                <a data-bs-toggle="modal" data-bs-target="#customize" class="btn btn-green rounded-0">
+                                    <i class="las la-pen las-sm"></i> Customize Barcode
+                                </a>
+                            </div>
+
+                      
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Container to display the barcode -->
+        <!-- <svg id="barcode"></svg> -->
+    </div>
+
+    <?php require_once APPROOT . '/views/inc/script-links.php' ?>
+
+    <script>
+        // Function to generate a random 12-digit number for the barcode
+        function generateRandomNumber() {
+            let randomNumber = '';
+            for (let i = 0; i < 12; i++) {
+                randomNumber += Math.floor(Math.random() * 10); // Generate a random digit (0-9)
+            }
+            return randomNumber;
+        }
+
+        // Function to generate barcode with a specific value
+        function generateBarcode(value) {
+            JsBarcode("#barcode", value, {
+                format: "EAN13", // Barcode format (e.g., EAN13, CODE128)
+                displayValue: true, // Display the barcode value below the barcode
+            });
+        }
+
+        // Handle clicking the button to generate a random number and populate the input
+        document.getElementById("generateRandom").addEventListener("click", function() {
+            const randomBarcodeValue = generateRandomNumber(); // Generate random number
+            document.getElementById("barcodeValue").value = randomBarcodeValue; // Populate the input
+            generateBarcode(randomBarcodeValue); // Generate barcode based on random number
+        });
+
+        // Handle input event to generate barcode as the user types
+        document.getElementById("barcodeValue").addEventListener("input", function() {
+            const barcodeValue = document.getElementById("barcodeValue").value;
+            if (barcodeValue.length === 12) { // Ensure it's a valid length for EAN13
+                generateBarcode(barcodeValue); // Generate barcode based on input value
+            }
+        });
+
+        // Handle downloading the barcode as an image
+        document.getElementById("download").addEventListener("click", function() {
+            var svg = document.getElementById("barcode");
+            var serializer = new XMLSerializer();
+            var svgString = serializer.serializeToString(svg);
+
+            var svgBlob = new Blob([svgString], {
+                type: "image/svg+xml"
+            });
+            var url = URL.createObjectURL(svgBlob);
+            var a = document.createElement("a");
+            a.href = url;
+            a.download = "barcode.svg"; // The file name to save the barcode
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+
+</html>
