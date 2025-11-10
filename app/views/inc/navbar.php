@@ -11,7 +11,7 @@
                   QR Codes
                </a>
                <div class="dropdown-menu border-0 rounded-0 shadow-sm">
-                  <a class="dropdown-item text-black-50" href="">Static QR Codes</a>
+                  <a class="dropdown-item text-black-50" href="<?= URLROOT ?>">Static QR Codes</a>
                   <a class="dropdown-item text-black-50" href="">Dynamic QR Codes</a>
                </div>
             </li>
