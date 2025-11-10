@@ -87,7 +87,7 @@ class Index extends Controller
         $this->customizeQRCode();
         // Call the generateQRCode function
         $this->generateQRCode();
-        
+
         // View page
         $this->view('index');
     }
@@ -227,16 +227,16 @@ class Index extends Controller
     {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Sanitize POST data
-            $_POST = filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING);
+            $this->formData = filteration($_POST);
             $data = [
-                'name' => trim($_POST['name']),
-                'email' => trim($_POST['email']),
-                'password' => trim($_POST['password']),
-                'confirm_password' => trim($_POST['confirm_password']),
+                'name' => $this->formData['name'],
+                'email' => $this->formData['email'],
+                'password' => $this->formData['password'],
+                'confirm_password' => $this->formData['confirm_password'],
                 'name_err' => '',
                 'email_err' => '',
                 'password_err' => '',
-                'confirm_password_err' => ''
+                'confirm_password_err' => '',
             ];
             // Validate Email
             if (empty($data['email'])) {
@@ -283,5 +283,85 @@ class Index extends Controller
             ];
             $this->view('index/register', $data);
         }
+    }
+
+    // Add QR code to cart
+    public function addQrToCart()
+    {
+        // Set response header to JSON
+        header('Content-Type: application/json');
+
+        // Initialize the cart if it doesn't exist
+        if (!isset($_SESSION['cart'])) {
+            $_SESSION['cart'] = [];
+        }
+
+        // Check if QR code exists
+        if (empty($_SESSION['qrImageData']) || empty($_SESSION['qrCodeData'])) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'No QR code to add to cart. Please generate a QR code first.'
+            ]);
+            exit;
+        }
+
+        // Determine QR code type based on the data
+        $qrCodeData = $_SESSION['qrCodeData'];
+        $qrType = 'QR Code';
+        if (strpos($qrCodeData, 'http://') === 0 || strpos($qrCodeData, 'https://') === 0) {
+            $qrType = 'URL';
+        } elseif (strpos($qrCodeData, 'mailto:') === 0) {
+            $qrType = 'Email';
+        } elseif (strpos($qrCodeData, 'tel:') === 0) {
+            $qrType = 'Call';
+        } elseif (strpos($qrCodeData, 'smsto:') === 0) {
+            $qrType = 'SMS';
+        } elseif (strpos($qrCodeData, 'WIFI:') === 0) {
+            $qrType = 'WiFi';
+        } elseif (strpos($qrCodeData, 'BEGIN:VCARD') === 0) {
+            $qrType = 'vCard';
+        } elseif (strpos($qrCodeData, 'wa.me') !== false || strpos($qrCodeData, 'whatsapp.com') !== false) {
+            $qrType = 'WhatsApp';
+        } elseif (strpos($qrCodeData, 'text:') === 0) {
+            $qrType = 'Text';
+        } else {
+            $qrType = 'Text';
+        }
+
+        // Get format from customize or default
+        $format = $_SESSION['customize']['qrCodeFormat'] ?? 'PNG';
+
+        // Create cart item
+        $cartItem = [
+            'type' => 'qrcode',
+            'qrCodeValue' => $qrCodeData,
+            'qrImageData' => $_SESSION['qrImageData'],
+            'format' => $qrType,
+            'imageFormat' => $format,
+            'customize' => $_SESSION['customize'] ?? []
+        ];
+
+        // Add to cart
+        $_SESSION['cart'][] = $cartItem;
+
+        // Save to database
+        $barcodeQrModel = $this->model('BarcodeQr');
+        $saveData = [
+            'type' => 'qrcode',
+            'value' => $qrCodeData,
+            'format' => $qrType,
+            'imageData' => $_SESSION['qrImageData'],
+            'customization' => $_SESSION['customize'] ?? []
+        ];
+
+        $id = $barcodeQrModel->save($saveData);
+        $dbMessage = $id ? ' and saved to database' : '';
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'QR Code added to cart successfully' . $dbMessage,
+            'db_id' => $id
+        ]);
+        exit;
     }
 }
