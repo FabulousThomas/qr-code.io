@@ -295,6 +295,12 @@
                                 </a>
                             </div>
 
+                            <div class="d-flex justify-content-center mt-2">
+                                <button type="button" class="btn btn-orange rounded-0" id="addQrToCart">
+                                    <i class="las la-shopping-cart las-sm"></i> Add to Cart
+                                </button>
+                            </div>
+
                         <?php else : ?>
                             <h5 class="text-center">Sample QR Code</h5>
                             <img src="<?= URLROOT ?>/images/qrimage/1734600549.png" alt="" class="img-fluid" style="width: 250px;">
@@ -328,6 +334,28 @@
                 e.preventDefault();
                 var tabId = $(this).attr('href').substring(1);
                 activateTab(tabId);
+            });
+
+            // Handle Add QR Code to Cart
+            $('#addQrToCart').on('click', function() {
+                fetch('<?= URLROOT ?>/index/addQrToCart', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        swal("Added!", "QR Code has been added to your cart.", "success");
+                    } else {
+                        swal("Error!", data.message || 'Failed to add QR code to cart', "error");
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    swal("Error!", "An error occurred. Please try again.", "error");
+                });
             });
         });
     </script>
