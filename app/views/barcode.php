@@ -17,8 +17,13 @@
                             <div class="mb-2">
                                 <label for="" class="form-label mb-1">Barcode Content</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control shadow-none border rounded-end-0" name="barcodeValue" id="barcodeValue" placeholder="Enter barcode content Or Get random number" value="<?= $data['barcodeValue'] ?>" required>
-                                    <button type="button" onclick="generateRandomNumber()" class="btn btn-green rounded-start-0"><i class="las la-random" style="font-size: 1.3rem;"></i></button>
+                                    <input type="text" class="form-control shadow-none border rounded-end-0"
+                                        name="barcodeValue" id="barcodeValue"
+                                        placeholder="Enter barcode content Or Get random number"
+                                        value="<?= $data['barcodeValue'] ?>" required>
+                                    <button type="button" onclick="generateRandomNumber()"
+                                        class="btn btn-green rounded-start-0"><i class="las la-random"
+                                            style="font-size: 1.3rem;"></i></button>
                                 </div>
                             </div>
 
@@ -34,18 +39,26 @@
 
                             <div class="mb-2">
                                 <label for="numBarcodes" class="form-label mb-1">Number of Barcodes</label>
-                                <input type="number" class="form-control shadow-none border" name="numBarcodes" id="numBarcodes" value="<?= $data['numBarcodes']; ?>" min="1" max="100" required>
+                                <input type="number" class="form-control shadow-none border" name="numBarcodes"
+                                    id="numBarcodes" value="<?= $data['numBarcodes']; ?>" min="1" max="100" required>
                             </div>
                             <div class="card-body text-center px-0">
                                 <div class="row d-flex flex-colum align-items-center justify-content-center">
                                     <div class="col-md-6 col-sm-12 mb-1">
-                                        <button type="submit" class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none" id="addToCart"><i class="las la-plus-square" style="font-size: 1.1rem;"></i> Generate</button>
+                                        <button type="button"
+                                            class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"
+                                            id="addToCart"><i class="las la-plus-square" style="font-size: 1.1rem;"></i>
+                                            Generate</button>
                                     </div>
                                     <div class="col-md-6 col-sm-12 mb-1">
-                                        <button type="submit" name="generateRandom" class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i class="las la-plus-square" style="font-size: 1.1rem;" id="addToCart"></i>Random Barcode(s)</button>
+                                        <button type="submit" name="generateRandom"
+                                            class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i
+                                                class="las la-plus-square" style="font-size: 1.1rem;"></i>Random
+                                            Barcode(s)</button>
                                     </div>
                                     <div class="col-md-6 col-sm-12 mb-1">
-                                        <select id="imageFormat" name="imageFormat" class="form-select shadow-none border rounded-0 text-light">
+                                        <select id="imageFormat" name="imageFormat"
+                                            class="form-select shadow-none border rounded-0 text-light">
                                             <option class="text-dark" value="png" <?= $data['imageFormat'] === 'png' ? 'selected' : ''; ?>>PNG</option>
                                             <option class="text-dark" value="jpg" <?= $data['imageFormat'] === 'jpg' ? 'selected' : ''; ?>>JPG</option>
                                             <option class="text-dark" value="svg" <?= $data['imageFormat'] === 'svg' ? 'selected' : ''; ?>>SVG</option>
@@ -54,13 +67,13 @@
 
                                     </div>
                                     <div class="col-md-6 col-sm-12 mb-1">
-                                        <button type="button" id="download" class="btn btn-green rounded-0 form-control" onclick="saveBarcodes()">
+                                        <button type="button" id="download" class="btn btn-green rounded-0 form-control"
+                                            onclick="saveBarcodes()">
                                             <i class="las la-download las-sm"></i> Download Barcodes
                                         </button>
                                     </div>
                                 </div>
                             </div>
-
 
                         </div>
                     </div>
@@ -96,41 +109,41 @@
                             <div class="row">
                                 <div class="col-md-6 mb-2">
                                     <label for="lineColor" class="form-label">Line Color:</label>
-                                    <input type="color" id="lineColor"
-                                        name="lineColor" class="form-control color-input shadow-none border"
+                                    <input type="color" id="lineColor" name="lineColor"
+                                        class="form-control color-input shadow-none border"
                                         value="<?= $data['lineColor'] ?>" required />
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label for="backgroundColor" class="form-label">Background Color:</label>
-                                    <input type="color" id="backgroundColor"
-                                        name="backgroundColor" class="form-control color-input shadow-none border"
+                                    <input type="color" id="backgroundColor" name="backgroundColor"
+                                        class="form-control color-input shadow-none border"
                                         value="<?= $data['backgroundColor'] ?>" required />
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-2">
                                     <label for="fontSize" class="form-label">Font Sise:</label>
-                                    <input type="number" id="fontSize"
-                                        name="fontSize" class="form-control color-input shadow-none border"
+                                    <input type="number" id="fontSize" name="fontSize"
+                                        class="form-control color-input shadow-none border"
                                         value="<?= $data['fontSize'] ?>" min="10" max="20" required />
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label for="height" class="form-label">Barcode Height:</label>
-                                    <input type="number" id="height"
-                                        name="height" class="form-control color-input shadow-none border"
+                                    <input type="number" id="height" name="height"
+                                        class="form-control color-input shadow-none border"
                                         value="<?= $data['height'] ?>" min="20" max="100" required />
                                 </div>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-2">
                                     <label for="width" class="form-label">Line Width:</label>
-                                    <input type="number" id="width"
-                                        name="width" class="form-control shadow-none border"
+                                    <input type="number" id="width" name="width" class="form-control shadow-none border"
                                         value="<?= $data['width'] ?>" min="1" max="5" required />
                                 </div>
                                 <div class="col-md-6 mb-2">
                                     <label for="displayValue" class="form-label">Barcode displayValue:</label>
-                                    <select id="displayValue" name="displayValue" class="form-select shadow-none border">
+                                    <select id="displayValue" name="displayValue"
+                                        class="form-select shadow-none border">
                                         <option class="text-dark" value="true" <?= $data['displayValue'] === 'true' ? 'selected' : ''; ?>>Show</option>
                                         <option class="text-dark" value="false" <?= $data['displayValue'] === 'false' ? 'selected' : ''; ?>>Hide</option>
                                     </select>
@@ -148,13 +161,19 @@
                         <div class="card-body text-center px-0">
                             <div class="row d-flex flex-colum align-items-center justify-content-center">
                                 <div class="col-md-6 col-sm-12 mb-1">
-                                    <button type="submit" class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i class="las la-plus-square" style="font-size: 1.1rem;"></i> Generate</button>
+                                    <button type="submit"
+                                        class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i
+                                            class="las la-plus-square" style="font-size: 1.1rem;"></i> Generate</button>
                                 </div>
                                 <div class="col-md-6 col-sm-12 mb-1">
-                                    <button type="submit" name="generateRandom" class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i class="las la-plus-square" style="font-size: 1.1rem;"></i>Random Barcode(s)</button>
+                                    <button type="submit" name="generateRandom"
+                                        class="btn btn-green form-control rounded-0 d-flex align-items-center justify-content-center shadow-none"><i
+                                            class="las la-plus-square" style="font-size: 1.1rem;"></i>Random
+                                        Barcode(s)</button>
                                 </div>
                                 <div class="col-md-6 col-sm-12 mb-1">
-                                    <select id="imageFormat" name="imageFormat" class="form-select shadow-none border rounded-0 text-light">
+                                    <select id="imageFormat" name="imageFormat"
+                                        class="form-select shadow-none border rounded-0 text-light">
                                         <option class="text-dark" value="png" <?= $data['imageFormat'] === 'png' ? 'selected' : ''; ?>>PNG</option>
                                         <option class="text-dark" value="jpg" <?= $data['imageFormat'] === 'jpg' ? 'selected' : ''; ?>>JPG</option>
                                         <option class="text-dark" value="svg" <?= $data['imageFormat'] === 'svg' ? 'selected' : ''; ?>>SVG</option>
@@ -163,7 +182,8 @@
 
                                 </div>
                                 <div class="col-md-6 col-sm-12 mb-1">
-                                    <button type="button" id="download" class="btn btn-green rounded-0 form-control" onclick="saveBarcodes()">
+                                    <button type="button" id="download" class="btn btn-green rounded-0 form-control"
+                                        onclick="saveBarcodes()">
                                         <i class="las la-download las-sm"></i> Download Barcodes
                                     </button>
                                 </div>
@@ -238,7 +258,7 @@
 
                     // Wrap the onload logic in a promise
                     const promise = new Promise((resolve) => {
-                        img.onload = function() {
+                        img.onload = function () {
                             context.drawImage(img, 0, 0, canvas.width, canvas.height);
 
                             // Convert canvas to image data
@@ -294,7 +314,7 @@
                         const img = new Image();
                         img.src = "data:image/svg+xml;base64," + btoa(svgData);
 
-                        img.onload = function() {
+                        img.onload = function () {
                             context.drawImage(img, 0, 0, canvas.width, canvas.height);
 
                             // Convert canvas to the selected image format
@@ -315,27 +335,95 @@
     </script>
 
     <script>
-        document.getElementById('addToCart').addEventListener('click', function() {
-            const barcodeValue = document.getElementById('barcodeValue').value;
-            const numBarcodes = parseInt(document.getElementById('numBarcodes').value);
-            const format = document.getElementById('format').value;
+        // Prevent the form from submitting normally for the Generate button
+        document.addEventListener('DOMContentLoaded', function () {
+            const barcodeForm = document.getElementById('barcodeForm');
+            const addToCartBtn = document.getElementById('addToCart');
 
-            if (!barcodeValue || numBarcodes < 1) {
-                alert('Please enter valid barcode content and quantity.');
+            console.log('Form found:', barcodeForm);
+            console.log('Add to Cart button found:', addToCartBtn);
+
+            if (!addToCartBtn) {
+                console.error('Add to Cart button not found!');
                 return;
             }
 
-            // Prepare the barcodes to add to the cart
-            const barcodes = [];
-            for (let i = 0; i < numBarcodes; i++) {
-                barcodes.push({
-                    barcodeValue: barcodeValue + '-' + (i + 1), // Append a unique identifier
-                    format: format
-                });
-            }
+            // Prevent form submission when Generate button is clicked
+            barcodeForm.addEventListener('submit', function (e) {
+                // Only prevent if it's NOT the generateRandom button
+                if (!e.submitter || !e.submitter.name || e.submitter.name !== 'generateRandom') {
+                    e.preventDefault();
+                    console.log('Form submission prevented');
+                }
+            });
 
-            // Send the barcodes to the server
-            fetch(window.location.href, {
+            addToCartBtn.addEventListener('click', function (e) {
+                e.preventDefault(); // Prevent form submission
+                e.stopPropagation(); // Stop event bubbling
+                console.log('Generate button clicked!');
+
+                const barcodeValue = document.getElementById('barcodeValue').value;
+                const numBarcodes = parseInt(document.getElementById('numBarcodes').value);
+                const format = document.getElementById('format').value;
+
+                if (!barcodeValue || numBarcodes < 1) {
+                    alert('Please enter valid barcode content and quantity.');
+                    return;
+                }
+
+                // Get customization options
+                const displayValue = document.getElementById('displayValue') ? document.getElementById('displayValue').value : 'true';
+                const lineColor = document.getElementById('lineColor') ? document.getElementById('lineColor').value : '#000000';
+                const backgroundColor = document.getElementById('backgroundColor') ? document.getElementById('backgroundColor').value : '#FFFFFF';
+                const width = document.getElementById('width') ? document.getElementById('width').value : '2';
+                const height = document.getElementById('height') ? document.getElementById('height').value : '100';
+
+                // Prepare the barcodes to add to the cart
+                const barcodes = [];
+
+                if (numBarcodes === 1) {
+                    // Single barcode
+                    barcodes.push({
+                        barcodeValue: barcodeValue,
+                        format: format,
+                        displayValue: displayValue,
+                        lineColor: lineColor,
+                        backgroundColor: backgroundColor,
+                        width: width,
+                        height: height
+                    });
+                } else {
+                    // Multiple barcodes - group them together
+                    const barcodeValues = [];
+                    for (let i = 0; i < numBarcodes; i++) {
+                        barcodeValues.push(barcodeValue + '-' + (i + 1)); // Append a unique identifier
+                    }
+                    barcodes.push({
+                        barcodeValue: barcodeValues,
+                        format: format,
+                        displayValue: displayValue,
+                        lineColor: lineColor,
+                        backgroundColor: backgroundColor,
+                        width: width,
+                        height: height
+                    });
+                }
+
+                // Validate barcodes array before sending
+                if (!barcodes || barcodes.length === 0) {
+                    console.error('Barcodes array is empty!');
+                    alert('Error: No barcodes to send');
+                    return;
+                }
+
+                console.log('Number of barcodes:', barcodes.length);
+                console.log('Barcodes array:', JSON.stringify(barcodes, null, 2));
+
+                const payload = { barcodes: barcodes };
+                console.log('Full payload:', JSON.stringify(payload, null, 2));
+
+                // Send the barcodes to the server
+                fetch(window.location.href, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -344,15 +432,26 @@
                         barcodes: barcodes
                     }),
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        alert('Barcodes added to cart successfully!');
-                    } else {
-                        alert('Failed to add barcodes to cart.');
-                    }
-                })
-                .catch(error => console.error('Error:', error));
+                    .then(response => {
+                        console.log('Response status:', response.status);
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Server response:', data);
+                        if (data.status === 'success') {
+                            swal("Added!", data.message || 'Barcodes added to cart successfully!', "success").then(() => {
+                                // Reload page to show updated cart and preview
+                                location.reload();
+                            });
+                        } else {
+                            swal("Error!", data.message || 'Failed to add barcodes to cart.', "error");
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        swal("Error!", "An error occurred while adding barcodes to cart.", "error");
+                    });
+            });
         });
     </script>
 
