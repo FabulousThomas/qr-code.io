@@ -24,17 +24,27 @@ class BarcodeQr
         $userId = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
         $sessionId = session_id();
 
-        // Save image to file if imageData is provided
+        $dataUriForStorage = $this->prepareDataUriForStorage($imageData, null, $format);
+
         if (!empty($imageData) && empty($imagePath)) {
-            $imagePath = $this->saveImageToFile($imageData, $type, $value);
+            if (strpos($imageData, 'data:image') === 0) {
+                $imagePath = $this->saveImageToFile($imageData, $type, $value);
+            } else {
+                $imagePath = $imageData;
+            }
         }
 
-        $this->db->query('INSERT INTO codes (type, value, format, image_path, customization_options, user_id, session_id, created_at) 
-                         VALUES (:type, :value, :format, :image_path, :customization, :user_id, :session_id, NOW())');
+        if ($dataUriForStorage === null && !empty($imagePath)) {
+            $dataUriForStorage = $this->prepareDataUriForStorage(null, $imagePath, $format);
+        }
+
+        $this->db->query('INSERT INTO codes (type, value, format, image_data, image_path, customization_options, user_id, session_id, created_at) 
+                         VALUES (:type, :value, :format, :image_data, :image_path, :customization, :user_id, :session_id, NOW())');
 
         $this->db->bind(':type', $type);
         $this->db->bind(':value', $value);
         $this->db->bind(':format', $format);
+        $this->db->bind(':image_data', $dataUriForStorage);
         $this->db->bind(':image_path', $imagePath);
         $this->db->bind(':customization', $customization);
         $this->db->bind(':user_id', $userId);
@@ -60,41 +70,85 @@ class BarcodeQr
         return $savedIds;
     }
 
-    // Save image to file
     private function saveImageToFile($imageData, $type, $value)
     {
-        // Determine file extension from data URI
-        $extension = 'png'; // default
-        if (preg_match('/^data:image\/(\w+);base64,/', $imageData, $matches)) {
-            $extension = $matches[1] ?? 'png';
-        }
-
-        // Remove data URL prefix if present
-        $imageDataClean = preg_replace('/^data:image\/(\w+);base64,/', '', $imageData);
-        $imageDataClean = str_replace(' ', '+', $imageDataClean);
-        $decoded = base64_decode($imageDataClean);
-
-        if (!$decoded) {
+        if (empty($imageData)) {
             return null;
         }
 
-        // Create directory if it doesn't exist
-        $dir = APPROOT . '/images/' . $type . 's/';
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+        $extension = 'png';
+        if (preg_match('/^data:image\/([\w+\-.]+);base64,/', $imageData, $matches)) {
+            $extension = strtolower($matches[1] ?? 'png');
         }
 
-        // Generate filename
-        $filename = $type . '_' . time() . '_' . md5($value . time()) . '.' . $extension;
-        $filepath = $dir . $filename;
+        if ($extension === 'jpeg') {
+            $extension = 'jpg';
+        }
 
-        // Save file
-        if (file_put_contents($filepath, $decoded)) {
-            // Return relative path
-            return APPROOT . '/images/' . $type . 's/' . $filename;
+        if ($extension === 'svg+xml') {
+            $extension = 'svg';
+        }
+
+        $parts = explode(',', $imageData, 2);
+        $imageDataClean = $parts[1] ?? '';
+        $imageDataClean = str_replace(["\r", "\n"], '', $imageDataClean);
+        $imageDataClean = str_replace(' ', '+', $imageDataClean);
+        $decoded = base64_decode($imageDataClean, true);
+
+        if ($decoded === false) {
+            return null;
+        }
+
+        $storage = $this->getStorageConfig($type);
+        $directory = $storage['directory'];
+        $publicPrefix = $storage['public_prefix'];
+
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $filename = $type . '_' . microtime(true) . '_' . md5($value . microtime(true)) . '.' . $extension;
+        $filename = str_replace([' ', ':'], '_', $filename);
+        $filePath = rtrim($directory, '\/');
+        $filePath .= DIRECTORY_SEPARATOR . $filename;
+
+        if (file_put_contents($filePath, $decoded) !== false) {
+            $relativePath = $publicPrefix . $filename;
+            $relativePath = '/' . ltrim(str_replace('\\', '/', $relativePath), '/');
+
+            if (defined('URLROOT')) {
+                return rtrim(URLROOT, '/') . $relativePath;
+            }
+
+            return $relativePath;
         }
 
         return null;
+    }
+
+    private function getStorageConfig($type)
+    {
+        $type = strtolower($type);
+
+        $basePublicPath = APPROOT . '/../public/images/';
+
+        switch ($type) {
+            case 'barcode':
+                return [
+                    'directory' => $basePublicPath . 'barimage/',
+                    'public_prefix' => 'images/barimage/'
+                ];
+            case 'qrcode':
+                return [
+                    'directory' => $basePublicPath . 'qrimage/',
+                    'public_prefix' => 'images/qrimage/'
+                ];
+            default:
+                return [
+                    'directory' => $basePublicPath . 'codes/',
+                    'public_prefix' => 'images/codes/'
+                ];
+        }
     }
 
     // Get codes by session
@@ -124,14 +178,256 @@ class BarcodeQr
     // Delete code
     public function delete($id)
     {
-        // Get the code first to delete associated image file
         $code = $this->getById($id);
-        if ($code && $code->image_path && file_exists($code->image_path)) {
-            unlink($code->image_path);
+        if ($code && $code->image_path) {
+            $this->unlinkPhysicalFile($code->image_path);
         }
 
         $this->db->query('DELETE FROM codes WHERE id = :id');
         $this->db->bind(':id', $id);
         return $this->db->execute();
+    }
+
+    public function updateImage($id, $imageData)
+    {
+        if (empty($imageData)) {
+            return false;
+        }
+
+        $code = $this->getById($id);
+        if (!$code) {
+            return false;
+        }
+
+        $this->unlinkPhysicalFile($code->image_path ?? null);
+
+        $dataUriForStorage = $this->prepareDataUriForStorage($imageData, null, $code->format ?? null);
+
+        if (strpos($imageData, 'data:image') === 0) {
+            $absolutePath = $this->saveImageToFile($imageData, $code->type ?? 'barcode', $code->value ?? $id);
+            if (!$absolutePath) {
+                return false;
+            }
+
+            $imagePath = $this->normalizeSavedPath($absolutePath);
+        } else {
+            $imagePath = $imageData;
+        }
+
+        if ($dataUriForStorage === null && !empty($imagePath)) {
+            $dataUriForStorage = $this->prepareDataUriForStorage(null, $imagePath, $code->format ?? null);
+        }
+
+        if (empty($imagePath) && $dataUriForStorage === null) {
+            return false;
+        }
+
+        $this->db->query('UPDATE codes SET image_path = :image_path, image_data = :image_data WHERE id = :id');
+        $this->db->bind(':image_path', $imagePath);
+        $this->db->bind(':image_data', $dataUriForStorage);
+        $this->db->bind(':id', $id);
+
+        if ($this->db->execute()) {
+            return $imagePath;
+        }
+
+        return false;
+    }
+
+    private function normalizeSavedPath($path)
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        if (defined('URLROOT') && strpos($path, URLROOT) === 0) {
+            $path = substr($path, strlen(URLROOT));
+            return '/' . ltrim($path, '/');
+        }
+
+        if (strpos($path, APPROOT) === 0) {
+            $relative = substr($path, strlen(APPROOT . '/../public'));
+            return '/' . ltrim(str_replace('\\', '/', $relative), '/');
+        }
+
+        return $path;
+    }
+
+    public function unlinkImage($id)
+    {
+        $code = $this->getById($id);
+        if (!$code) {
+            return false;
+        }
+
+        $this->unlinkPhysicalFile($code->image_path ?? null);
+
+        $this->db->query('UPDATE codes SET image_path = NULL WHERE id = :id');
+        $this->db->bind(':id', $id);
+        return $this->db->execute();
+    }
+
+    public function getImageDataUri($code)
+    {
+        if (!$code) {
+            return null;
+        }
+
+        if (!empty($code->image_data)) {
+            $normalized = $this->normalizeDataUri($code->image_data);
+            if (!empty($normalized)) {
+                return $normalized;
+            }
+        }
+
+        if (empty($code->image_path)) {
+            return null;
+        }
+
+        $filePath = $this->resolvePhysicalPath($code->image_path);
+        if (!$filePath || !file_exists($filePath)) {
+            return null;
+        }
+
+        $binary = file_get_contents($filePath);
+        if ($binary === false) {
+            return null;
+        }
+
+        $base64 = base64_encode($binary);
+        if ($base64 === false) {
+            return null;
+        }
+
+        $mime = $this->detectMimeFromPath($filePath, $code->format ?? null);
+
+        return 'data:' . $mime . ';base64,' . $base64;
+    }
+
+    private function unlinkPhysicalFile($imagePath)
+    {
+        if (empty($imagePath)) {
+            return;
+        }
+
+        $filePath = $this->resolvePhysicalPath($imagePath);
+
+        if ($filePath && file_exists($filePath)) {
+            @unlink($filePath);
+        }
+    }
+
+    private function resolvePhysicalPath($imagePath)
+    {
+        if (empty($imagePath)) {
+            return null;
+        }
+
+        $filePath = $imagePath;
+
+        if (strpos($filePath, URLROOT) === 0) {
+            $relativePath = substr($filePath, strlen(URLROOT));
+            $filePath = APPROOT . '/../public' . $relativePath;
+        } elseif (strpos($filePath, APPROOT) !== 0) {
+            $filePath = APPROOT . '/../public/' . ltrim($filePath, '/');
+        }
+
+        return $filePath;
+    }
+
+    private function detectMimeFromPath($filePath, $format)
+    {
+        if (!empty($format)) {
+            $format = strtolower($format);
+            if (in_array($format, ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'svg', 'pdf'], true)) {
+                return 'image/' . ($format === 'jpg' ? 'jpeg' : $format);
+            }
+        }
+
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        if (in_array($extension, ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'svg', 'pdf'], true)) {
+            return 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
+        }
+
+        return 'image/png';
+    }
+
+    private function prepareDataUriForStorage($imageData, $imagePath, $format)
+    {
+        if (!empty($imageData) && strpos($imageData, 'data:image') === 0) {
+            return $this->normalizeDataUri($imageData);
+        }
+
+        $binary = null;
+        $mime = null;
+
+        if (!empty($imagePath)) {
+            $absolute = $this->resolvePhysicalPath($imagePath);
+            if ($absolute && file_exists($absolute)) {
+                $binary = file_get_contents($absolute);
+                if ($binary === false) {
+                    $binary = null;
+                }
+                $mime = $this->detectMimeFromPath($absolute, $format);
+            }
+        }
+
+        if ($binary === null) {
+            return null;
+        }
+
+        if ($mime === null) {
+            $fallbackFormat = $format;
+            if (empty($fallbackFormat) && !empty($imagePath)) {
+                $fallbackFormat = pathinfo($imagePath, PATHINFO_EXTENSION);
+            }
+
+            if (!empty($fallbackFormat)) {
+                $fallbackFormat = strtolower($fallbackFormat);
+                if ($fallbackFormat === 'jpg') {
+                    $fallbackFormat = 'jpeg';
+                }
+                $mime = 'image/' . $fallbackFormat;
+            }
+        }
+
+        if ($mime === null) {
+            $mime = 'image/png';
+        }
+
+        $base64 = base64_encode($binary);
+        if ($base64 === false) {
+            return null;
+        }
+
+        return 'data:' . $mime . ';base64,' . $base64;
+    }
+
+    private function normalizeDataUri($dataUri)
+    {
+        if (empty($dataUri)) {
+            return null;
+        }
+
+        $parts = explode(',', $dataUri, 2);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        $header = $parts[0];
+        $body = $parts[1];
+
+        $body = str_replace(["\r", "\n", ' '], '', $body);
+        $decoded = base64_decode($body, true);
+        if ($decoded === false) {
+            return null;
+        }
+
+        $base64 = base64_encode($decoded);
+        if ($base64 === false) {
+            return null;
+        }
+
+        return $header . ',' . $base64;
     }
 }
