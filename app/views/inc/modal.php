@@ -105,7 +105,7 @@
 
 <!-- Modal for cart modal -->
 <div class="modal fade" id="cartModal" data-bs-backdrop="static" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="staticBackdropLabel">Your Cart</h5>
@@ -125,104 +125,170 @@
                         <p class='text-white mb-0'>Add some QR codes or barcodes to your cart to get started.</p>
                     </div>
                 <?php else: ?>
-                    <!--  Display cart items -->
-                    <?php foreach ($_SESSION['cart'] as $index => $item): ?>
-                        <div class='cart-item mb-3 pb-3 border-bottom' data-item-index='" . $index . "'>
-                            <div class='d-flex justify-content-between align-items-start mb-2'>
-                                <div class='flex-grow-1'>
-                                    <strong>Item #<?= ($index + 1) ?></strong>
-                                    <?php $itemType = isset($item['type']) && $item['type'] === 'qrcode' ? 'QR Code' : 'Barcode'; ?>
-                                    <span class='badge bg-info ms-2'><?= htmlspecialchars($itemType) ?></span>
-                                    <span
-                                        class='badge bg-secondary ms-2'><?= htmlspecialchars($item['format'] ?? 'N/A') ?></span>
-                                </div>
-                                <button type='button' class='btn btn-sm btn-danger remove-item-btn' data-index='<?= $index ?>'
-                                    onclick='removeCartItem(<?= $index ?>)' title='Remove item'>
-                                    <i class='las la-trash'></i>
-                                </button>
-                            </div>
-
-                            <!-- // Handle QR codes -->
-                            <?php if (isset($item['type']) && $item['type'] === 'qrcode'): ?>
-                                <div class='qr-code-item mt-2'>
-                                    <?php if (isset($item['qrImageData'])): ?>
-                                        <div class='text-center mb-2'>
-                                            <img src='<?= htmlspecialchars($item['qrImageData']) ?>' alt='QR Code' class='img-fluid'
-                                                style='max-width: 150px;'>
-                                        </div>
-                                    <?php endif; ?>
-                                    <?php if (isset($item['qrCodeValue'])): ?>
-                                        <div class='qr-code-value'>
-                                            <strong>QR Data:</strong>
-                                            <?php $qrValue = htmlspecialchars($item['qrCodeValue']); ?>
-                                            <!-- // Truncate long values -->
-                                            <?php if (strlen($qrValue) > 50): ?>
-                                                <?php $qrValue = substr($qrValue, 0, 50) . '...'; ?>
+                    <div class="table-responsive cart-items-table">
+                        <table class="table table-dark table-hover align-middle mb-4">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Item</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Format</th>
+                                    <th scope="col">Details</th>
+                                    <th scope="col" class="text-center">Remove</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($_SESSION['cart'] as $index => $item): ?>
+                                    <tr class="cart-item">
+                                        <td class="fw-semibold">Item #<?= ($index + 1) ?></td>
+                                        <td>
+                                            <?php if (!empty($item['type'])): ?>
+                                                <span class="badge bg-info text-uppercase"><?= htmlspecialchars($item['type']) ?></span>
+                                            <?php else: ?>
+                                                <span class="text-white-50">—</span>
                                             <?php endif; ?>
-                                            <span class='text-primary'>
-                                                <a href="<?= $qrValue ?>" target="_blank"><?= $qrValue ?></a>
-                                            </span>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                <!-- Handle Barcodes -->
-                            <?php elseif (isset($item['barcodeValue'])): ?>
-                                <?php
-                                $barcodeFormat = $item['format'] ?? 'EAN13';
-                                $displayValue = isset($item['displayValue']) ? ($item['displayValue'] === 'true' || $item['displayValue'] === true) : true;
-                                $lineColor = $item['lineColor'] ?? '#000000';
-                                $backgroundColor = $item['backgroundColor'] ?? '#FFFFFF';
-                                $width = $item['width'] ?? '2';
-                                $height = $item['height'] ?? '100';
-                                ?>
-                                <?php if (is_array($item['barcodeValue'])): ?>
-                                    <!-- Multiple barcode values -->
-                                    <div class='barcode-values'>
-                                        <strong>Barcodes (<?= count($item['barcodeValue']) ?>):</strong><br>
-                                        <?php foreach ($item['barcodeValue'] as $barcodeIndex => $barcodeVal): ?>
-                                            <div class='mb-2'>
-                                                <div class='d-flex align-items-center mb-1'>
-                                                    <span class='badge bg-primary me-2'><?= ($barcodeIndex + 1) ?></span>
-                                                    <small class='text-muted'><?= htmlspecialchars($barcodeVal) ?></small>
+                                            <?php if (!empty($item['randomGenerated'])): ?>
+                                                <span class="badge bg-warning text-dark ms-1">Random</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if (!empty($item['format'])): ?>
+                                                <span class="badge bg-secondary"><?= htmlspecialchars($item['format']) ?></span>
+                                            <?php else: ?>
+                                                <span class="text-white-50">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td style="min-width: 220px;">
+                                            <?php if (isset($item['type']) && $item['type'] === 'qrcode'): ?>
+                                                <div class="text-white small">
+                                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                                        <i class="las la-qrcode text-warning"></i>
+                                                        <span class="fw-semibold">QR Code</span>
+                                                        <span class="badge bg-dark border border-warning text-warning">Locked</span>
+                                                        <?php if (!empty($item['randomGenerated'])): ?>
+                                                            <span class="badge bg-warning text-dark">Random ×<?= (int) ($item['randomGeneratedCount'] ?? 1) ?></span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="text-white-50 d-flex flex-wrap gap-2 mt-1">
+                                                        <span><i class="las la-lock me-1"></i>Unlock after payment</span>
+                                                        <?php if (!empty($item['qrCodeValue'])): ?>
+                                                            <span><i class="las la-database me-1"></i>Data hidden</span>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </div>
-                                                <?php $barcodeId = "barcode-cart-" . $index . "-" . $barcodeIndex; ?>
-                                                <svg id='<?= $barcodeId ?>' class='barcode-svg'
-                                                    data-value='<?= htmlspecialchars($barcodeVal) ?>'
-                                                    data-format='<?= htmlspecialchars($barcodeFormat) ?>'
-                                                    data-display='<?= ($displayValue ? 'true' : 'false') ?>'
-                                                    data-line-color='<?= htmlspecialchars($lineColor) ?>'
-                                                    data-bg-color='<?= htmlspecialchars($backgroundColor) ?>'
-                                                    data-width='<?= htmlspecialchars($width) ?>'
-                                                    data-height='<?= htmlspecialchars($height) ?>'
-                                                    style='max-width: 200px; height: auto;'></svg>
-                                            </div>
-                                        <?php endforeach; ?>
+                                            <?php elseif (isset($item['barcodeValue'])): ?>
+                                                <?php
+                                                $displayValue = isset($item['displayValue']) ? ($item['displayValue'] === 'true' || $item['displayValue'] === true) : true;
+                                                $lineColor = $item['lineColor'] ?? '#000000';
+                                                $backgroundColor = $item['backgroundColor'] ?? '#FFFFFF';
+                                                $width = $item['width'] ?? '2';
+                                                $height = $item['height'] ?? '100';
+                                                $barcodeCount = is_array($item['barcodeValue']) ? count($item['barcodeValue']) : 1;
+                                                ?>
+                                                <div class="text-white small">
+                                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                                        <span class="badge" style="background: <?= htmlspecialchars($lineColor) ?>; color: <?= $lineColor === '#FFFFFF' ? '#000' : '#FFF' ?>;">Line</span>
+                                                        <span class="badge" style="background: <?= htmlspecialchars($backgroundColor) ?>; color: <?= $backgroundColor === '#FFFFFF' ? '#000' : '#FFF' ?>;">Bg</span>
+                                                        <span class="badge bg-secondary"><?= htmlspecialchars($width) ?>×<?= htmlspecialchars($height) ?>px</span>
+                                                        <span class="badge bg-dark border border-warning text-warning">Locked</span>
+                                                        <?php if (!$displayValue): ?>
+                                                            <span class="badge bg-dark border border-secondary text-white-50">Value Hidden</span>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($item['randomGenerated'])): ?>
+                                                            <span class="badge bg-warning text-dark">Random ×<?= $barcodeCount ?></span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="text-white-50 d-flex flex-wrap gap-2 mt-1">
+                                                        <span><i class="las la-barcode me-1"></i><?= $barcodeCount ?> locked</span>
+                                                        <span><i class="las la-lock me-1"></i>Visible after payment</span>
+                                                    </div>
+                                                </div>
+                                            <?php else: ?>
+                                                <span class="text-white">No value</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-danger btn-sm remove-item-btn" onclick="removeCartItem(<?= $index ?>)" title="Remove from cart">
+                                                <i class="las la-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Cart Summary -->
+                    <?php
+                    $totalQRCodes = 0;
+                    $totalBarcodes = 0;
+                    $randomDiscountEligible = 0;
+                    foreach ($_SESSION['cart'] as $item) {
+                        if (isset($item['type']) && $item['type'] === 'qrcode') {
+                            $totalQRCodes++;
+                        } elseif (isset($item['barcodeValue'])) {
+                            $count = is_array($item['barcodeValue']) ? count($item['barcodeValue']) : 1;
+                            $totalBarcodes += $count;
+
+                            if (!empty($item['randomGenerated'])) {
+                                $availableCap = max(0, 20 - $randomDiscountEligible);
+                                if ($availableCap > 0) {
+                                    $eligibleCount = min($count, (int) ($item['randomGeneratedCount'] ?? $count), $availableCap);
+                                    $randomDiscountEligible += $eligibleCount;
+                                }
+                            }
+                        }
+                    }
+                    $qrPrice = 500;
+                    $barcodePrice = 700;
+                    $totalItems = $totalQRCodes + $totalBarcodes;
+                    $baseAmount = ($totalQRCodes * $qrPrice) + ($totalBarcodes * $barcodePrice);
+                    $discountAmount = (int) round($randomDiscountEligible * $barcodePrice * 0.20);
+                    $totalAmount = max(0, $baseAmount - $discountAmount);
+                    ?>
+                    <div class='cart-summary mt-3 p-3 border-top' style='background: rgba(255, 255, 255, 0.05);'>
+                        <h6 class='text-white mb-3'><i class='las la-shopping-cart'></i> Cart Summary</h6>
+                        <div class='row text-white'>
+                            <div class='col-6 mb-2'>
+                                <div class='d-flex align-items-center'>
+                                    <i class='las la-box text-success me-2' style='font-size: 1.5rem;'></i>
+                                    <div>
+                                        <small class='d-block text-white'>Total Items</small>
+                                        <strong style='font-size: 1.2rem;'><?= $totalItems ?></strong>
                                     </div>
-                                <?php else: ?>
-                                    <!-- Single barcode value -->
-                                    <div class='barcode-item mt-2'>
-                                        <div class='text-center mb-2'>
-                                            <?php $barcodeId = "barcode-cart-" . $index; ?>
-                                            <svg id='<?= $barcodeId ?>' class='barcode-svg'
-                                                data-value='<?= htmlspecialchars($item['barcodeValue']) ?>'
-                                                data-format='<?= htmlspecialchars($barcodeFormat) ?>'
-                                                data-display='<?= ($displayValue ? 'true' : 'false') ?>'
-                                                data-line-color='<?= htmlspecialchars($lineColor) ?>'
-                                                data-bg-color='<?= htmlspecialchars($backgroundColor) ?>'
-                                                data-width='<?= htmlspecialchars($width) ?>'
-                                                data-height='<?= htmlspecialchars($height) ?>'
-                                                style='max-width: 200px; height: auto;'></svg>
-                                        </div>
-                                        <div class='barcode-value text-center'>
-                                            <small class='text-muted'><?= htmlspecialchars($item['barcodeValue']) ?></small>
-                                        </div>
+                                </div>
+                            </div>
+                            <div class='col-6 mb-2'>
+                                <div class='d-flex align-items-center'>
+                                    <i class='las la-qrcode text-info me-2' style='font-size: 1.5rem;'></i>
+                                    <div>
+                                        <small class='d-block text-white'>QR Codes</small>
+                                        <strong style='font-size: 1.2rem;'><?= $totalQRCodes ?></strong>
                                     </div>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <div class='text-muted'>No value</div>
-                            <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class='col-6'>
+                                <div class='d-flex align-items-center'>
+                                    <i class='las la-barcode text-warning me-2' style='font-size: 1.5rem;'></i>
+                                    <div>
+                                        <small class='d-block text-white'>Barcodes</small>
+                                        <strong style='font-size: 1.2rem;'><?= $totalBarcodes ?></strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class='col-12'>
+                                <div class='d-flex align-items-center'>
+                                    <i class='las la-money-bill-wave text-warning me-2' style='font-size: 1.5rem;'></i>
+                                    <div>
+                                        <small class='d-block text-white'>Total Amount</small>
+                                        <strong style='font-size: 1.4rem;'>₦<?= number_format($totalAmount) ?></strong>
+                                        <?php if ($discountAmount > 0): ?>
+                                            <small class='d-block text-success'>Includes ₦<?= number_format($discountAmount) ?> discount (20% off up to 10 random barcodes)</small>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
             </div>
             <div class="modal-footer border-0">
@@ -239,18 +305,229 @@
 
 <script>
     function proceedToCheckout() {
-        // Close the cart modal
-        const cartModal = bootstrap.Modal.getInstance(document.getElementById('cartModal'));
-        if (cartModal) {
-            cartModal.hide();
+        // Calculate total amount from cart
+        const cartItems = <?= json_encode($_SESSION['cart'] ?? []) ?>;
+
+        if (cartItems.length === 0) {
+            swal("Empty Cart", "Your cart is empty. Please add items before checkout.", "warning");
+            return;
         }
 
-        // Redirect to checkout page
-        // Replace with your actual checkout route/URL
-        // window.location.href = '<?= URLROOT ?>/barcode/checkout';
+        const cartModalElement = document.getElementById('cartModal');
+        const cartModal = cartModalElement ? (bootstrap.Modal.getInstance(cartModalElement) || bootstrap.Modal.getOrCreateInstance(cartModalElement)) : null;
 
-        // Alternative: If you want to open a payment modal instead, uncomment below:
-        initPayment();
+        const launchEmailPrompt = () => {
+            // Calculate totals with distinct pricing
+            let totalQrCodes = 0;
+            let totalBarcodes = 0;
+            let randomDiscountEligible = 0;
+
+            cartItems.forEach(item => {
+                if (item.type === 'qrcode') {
+                    totalQrCodes += 1;
+                } else if (item.barcodeValue) {
+                    const count = Array.isArray(item.barcodeValue) ? item.barcodeValue.length : 1;
+                    totalBarcodes += count;
+
+                    if (item.randomGenerated) {
+                        const availableCap = Math.max(0, 10 - randomDiscountEligible);
+                        if (availableCap > 0) {
+                            const eligibleCount = Math.min(
+                                count,
+                                typeof item.randomGeneratedCount === 'number' ? item.randomGeneratedCount : count,
+                                availableCap
+                            );
+                            randomDiscountEligible += eligibleCount;
+                        }
+                    }
+                }
+            });
+
+            const qrPrice = 500;   // ₦500 per QR code
+            const barcodePrice = 700; // ₦700 per barcode
+            const totalItems = totalQrCodes + totalBarcodes;
+            const baseAmount = (totalQrCodes * qrPrice) + (totalBarcodes * barcodePrice);
+            const discountAmount = Math.round(randomDiscountEligible * barcodePrice * 0.10);
+            const totalAmount = Math.max(0, baseAmount - discountAmount);
+
+            swal({
+                title: "Enter Your Email",
+                text: discountAmount > 0
+                    ? `Total: ₦${totalAmount.toLocaleString()} for ${totalItems} item(s) (₦${discountAmount.toLocaleString()} discount applied)`
+                    : `Total: ₦${totalAmount.toLocaleString()} for ${totalItems} item(s)`,
+                content: "input",
+                buttons: {
+                    cancel: "Cancel",
+                    confirm: {
+                        text: "Proceed to Payment",
+                        closeModal: false,
+                    }
+                },
+                closeOnClickOutside: false,
+            }).then((value) => {
+                if (value === null) {
+                    swal.close();
+                    if (cartModal) {
+                        cartModal.show();
+                    }
+                    return;
+                }
+
+                const email = (value || '').trim();
+
+                if (!email) {
+                    swal("Email Required", "Please enter your email address.", "error");
+                    if (cartModal) {
+                        cartModal.show();
+                    }
+                    return;
+                }
+
+                // Validate email
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    swal("Invalid Email", "Please enter a valid email address.", "error");
+                    if (cartModal) {
+                        cartModal.show();
+                    }
+                    return;
+                }
+
+                swal.close();
+
+                // Close cart modal (ensure hidden state)
+                if (cartModal) {
+                    cartModal.hide();
+                }
+
+                // Initialize Paystack payment
+                initializePaystackPayment(email, totalAmount, totalItems);
+            });
+
+            // Configure and focus the SweetAlert input once it is rendered
+            setTimeout(function () {
+                const inp = document.querySelector('.swal-content__input');
+                if (inp) {
+                    inp.type = 'email';
+                    inp.placeholder = 'your.email@example.com';
+                    inp.required = true;
+                    inp.id = 'checkout-email-input';
+                    inp.autocomplete = 'email';
+                    inp.classList.add('form-control shadow-none text-dark');
+                    inp.style.padding = '10px';
+                    // inp.style.border = '1px solid #ddd';
+                    inp.style.borderRadius = '4px';
+                    inp.style.fontSize = '14px';
+                    inp.focus();
+                }
+            }, 100);
+        };
+
+        if (cartModal) {
+            const cleanUpBackdrops = () => {
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('padding-right');
+                document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+            };
+
+            if (cartModalElement.classList.contains('show')) {
+                cartModalElement.addEventListener('hidden.bs.modal', function handleHidden() {
+                    cartModalElement.removeEventListener('hidden.bs.modal', handleHidden);
+                    cleanUpBackdrops();
+                    launchEmailPrompt();
+                }, { once: true });
+                cartModal.hide();
+            } else {
+                cleanUpBackdrops();
+                launchEmailPrompt();
+            }
+        } else {
+            launchEmailPrompt();
+        }
+    }
+
+    function initializePaystackPayment(email, amount, itemCount) {
+        const paystackPublicKey = "pk_test_your_key_here"; // Replace with your Paystack Public Key
+
+        const handler = PaystackPop.setup({
+            key: paystackPublicKey,
+            email: email,
+            amount: amount * 100, // Convert to kobo (Paystack uses smallest currency unit)
+            currency: "NGN",
+            ref: 'QR_BARCODE_' + Math.floor((Math.random() * 1000000000) + 1) + '_' + Date.now(),
+            metadata: {
+                custom_fields: [
+                    {
+                        display_name: "Items Count",
+                        variable_name: "items_count",
+                        value: itemCount
+                    },
+                    {
+                        display_name: "Product Type",
+                        variable_name: "product_type",
+                        value: "QR Codes & Barcodes"
+                    }
+                ]
+            },
+            callback: function (response) {
+                // Payment successful
+                console.log('Payment successful. Reference:', response.reference);
+
+                // Verify payment on server
+                verifyPayment(response.reference, email);
+            },
+            onClose: function () {
+                // Payment window closed
+                swal("Payment Cancelled", "You closed the payment window. Your cart items are still saved.", "info");
+            }
+        });
+
+        handler.openIframe();
+    }
+
+    function verifyPayment(reference, email) {
+        // Show loading state
+        swal({
+            title: "Verifying Payment",
+            text: "Please wait while we verify your payment...",
+            icon: "info",
+            buttons: false,
+            closeOnClickOutside: false,
+            closeOnEsc: false,
+        });
+
+        // Send verification request to server
+        fetch('<?= URLROOT ?>/barcode/verifyPayment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                reference: reference,
+                email: email
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Payment verified successfully
+                    swal({
+                        title: "Payment Successful!",
+                        text: "Your payment has been verified. Your barcodes / QR codes are now available for download.",
+                        icon: "success",
+                        button: "View My Codes",
+                    }).then(() => {
+                        // Redirect to success page or reload to show unlocked codes
+                        window.location.href = '<?= URLROOT ?>/barcode/paymentSuccess';
+                    });
+                } else {
+                    swal("Verification Failed", data.message || "Unable to verify your payment. Please contact support.", "error");
+                }
+            })
+            .catch(error => {
+                console.error('Verification error:', error);
+                swal("Error", "An error occurred while verifying your payment. Please contact support with reference: " + reference, "error");
+            });
     }
 
     function removeCartItem(index) {
