@@ -25,7 +25,7 @@ if (!$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS)) {
 if ($conn->query("CREATE DATABASE IF NOT EXISTS qrcode")) {
    $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
-   $conn->query("CREATE TABLE IF NOT EXISTS `qr-codes` (`id` INT NOT NULL AUTO_INCREMENT , `qrtext` TEXT NOT NULL , `qrimage` VARCHAR(250) NOT NULL , `date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
+   // $conn->query("CREATE TABLE IF NOT EXISTS `qr-codes` (`id` INT NOT NULL AUTO_INCREMENT , `qrtext` TEXT NOT NULL , `qrimage` VARCHAR(250) NOT NULL , `date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
    
    // Create codes table for storing barcodes and QR codes
    $conn->query("CREATE TABLE IF NOT EXISTS `codes` (
@@ -33,6 +33,7 @@ if ($conn->query("CREATE DATABASE IF NOT EXISTS qrcode")) {
       `type` ENUM('barcode', 'qrcode') NOT NULL DEFAULT 'barcode',
       `value` TEXT NOT NULL,
       `format` VARCHAR(50) DEFAULT NULL,
+      `image_data` TEXT DEFAULT NULL,
       `image_path` VARCHAR(500) DEFAULT NULL,
       `customization_options` TEXT DEFAULT NULL,
       `user_id` INT DEFAULT NULL,
