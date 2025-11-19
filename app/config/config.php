@@ -37,11 +37,24 @@ if ($conn->query("CREATE DATABASE IF NOT EXISTS qrcode")) {
       `image_path` VARCHAR(500) DEFAULT NULL,
       `customization_options` TEXT DEFAULT NULL,
       `user_id` INT DEFAULT NULL,
+      `email` VARCHAR(255) DEFAULT NULL,
       `session_id` VARCHAR(255) DEFAULT NULL,
       `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (`id`),
       KEY `idx_session` (`session_id`),
       KEY `idx_user` (`user_id`),
       KEY `idx_type` (`type`)
+   ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+   // Create users table for persisting customers by email
+   $conn->query("CREATE TABLE IF NOT EXISTS `users` (
+      `id` INT NOT NULL AUTO_INCREMENT,
+      `name` VARCHAR(255) NOT NULL,
+      `username` VARCHAR(255) NOT NULL,
+      `email` VARCHAR(255) NOT NULL,
+      `password` VARCHAR(255) NOT NULL,
+      `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (`id`),
+      UNIQUE KEY `uniq_email` (`email`)
    ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
 }
