@@ -98,12 +98,14 @@ input::-webkit-inner-spin-button {
 /* Firefox */
 input[type=number] {
   -moz-appearance: textfield !important;
+  appearance: textfield;
 }
 
-.color-input {
+.barcode-preview-grid .barcode {
   width: 100%;
-  height: 40px;
-  cursor: pointer;
+  max-width: 120px;
+  height: auto;
+  max-height: 80px;
 }
 
 .color-input::-webkit-color-swatch-wrapper {
