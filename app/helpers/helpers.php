@@ -105,17 +105,37 @@ function filteration(array $type): array
  */
 function addLogo($logoName, $folder)
 {
-    $ext = pathinfo($_FILES[$logoName]['name'] ?? '', PATHINFO_EXTENSION);
-    $image = 'QRL-' . random_int(11111, 99999) . '.' . $ext;
-
-    $path = "images/$folder/";
-    if (move_uploaded_file($_FILES[$logoName]['tmp_name'] ?? '', $path . $image)) {
-        alert('success', 'Image Upload Error');
-        return $image;
-    } else {
-        alert('success', 'Image Upload Error');
+    if (empty($_FILES[$logoName]['name']) || !is_uploaded_file($_FILES[$logoName]['tmp_name'] ?? '')) {
+        alert('message', 'No image uploaded');
         return null;
     }
+
+    $allowed = ['png','jpg','jpeg','svg'];
+    $ext = strtolower(pathinfo($_FILES[$logoName]['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowed, true)) {
+        alert('message', 'Unsupported image type');
+        return null;
+    }
+
+    $size = (int)($_FILES[$logoName]['size'] ?? 0);
+    if ($size <= 0 || $size > 2 * 1024 * 1024) {
+        alert('message', 'Image too large');
+        return null;
+    }
+
+    $image = 'QRL-' . random_int(11111, 99999) . '.' . $ext;
+    $path = 'images/' . trim($folder, '/\\') . '/';
+    if (!is_dir($path)) {
+        @mkdir($path, 0755, true);
+    }
+
+    if (move_uploaded_file($_FILES[$logoName]['tmp_name'], $path . $image)) {
+        alert('success', 'Image uploaded successfully');
+        return $image;
+    }
+
+    alert('message', 'Image Upload Error');
+    return null;
 }
 
 function imageUpload(string $img_name, string $path)
@@ -128,4 +148,26 @@ function imageUpload(string $img_name, string $path)
     } else {
         flashMsg('success', 'Image Upload Error', 'alert-danger');
     }
+}
+
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_input(): void
+{
+    $t = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
+    echo '<input type="hidden" name="csrf_token" value="' . $t . '">';
+}
+
+function csrf_verify($token): bool
+{
+    if (!is_string($token) || empty($_SESSION['csrf_token'])) {
+        return false;
+    }
+    return hash_equals($_SESSION['csrf_token'], $token);
 }
