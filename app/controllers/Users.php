@@ -3,6 +3,7 @@ class Users extends Controller
 {
    private $data = [];
    private $userModel = '';
+   private $formData = [];
    public function __construct()
    {
       $this->userModel = $this->model('User');
@@ -13,15 +14,15 @@ class Users extends Controller
    {
       if ($_SERVER['REQUEST_METHOD'] == 'POST') {
          // Sanitize input
-         $_POST = filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING);
+         $this->formData = filteration($_POST);
          // Initialize this->data array
          $this->data = [
             'title' => 'Create an Account',
             'description' => 'Please, Register to Login',
-            'name' => trim($_POST['name']),
-            'username' => trim($_POST['username']),
-            'email' => trim($_POST['email']),
-            'password' => trim($_POST['password']),
+            'name' => $this->formData['name'] ?? '',
+            'username' => $this->formData['username'] ?? '',
+            'email' => $this->formData['email'] ?? '',
+            'password' => $this->formData['password'] ?? '',
             'name_err' => '',
             'username_err' => '',
             'email_err' => '',
@@ -42,14 +43,14 @@ class Users extends Controller
          } elseif ($this->data['email'] == $this->userModel->checkEmail($this->data['email'])) {
             $this->data['email_err'] = 'This email already exist';
          }
-         if (empty($this->data['password'])) {
-            $this->data['password_err'] = 'Please, enter password';
-         } elseif (strlen($this->data['password']) < 6) {
-            $this->data['password_err'] = 'password must be at least 6 characters';
-         }
+         // if (empty($this->data['password'])) {
+         //    $this->data['password_err'] = 'Please, enter password';
+         // } elseif (strlen($this->data['password']) < 6) {
+         //    $this->data['password_err'] = 'password must be at least 6 characters';
+         // }
 
          // Make sure errors are empty
-         if (empty($this->data['name_err']) && empty($this->data['username_err']) && empty($this->data['email_err']) && empty($this->data['password_err'])) {
+         if (empty($this->data['name_err']) && empty($this->data['username_err']) && empty($this->data['email_err'])) {
 
             // Hash password
             // $this->data['password'] = password_hash($this->data['password'], PASSWORD_DEFAULT);
@@ -68,10 +69,6 @@ class Users extends Controller
          $this->data = [
             'title' => 'Create an Account',
             'description' => 'Please, Register to Login',
-            'name' => '',
-            'username' => '',
-            'email' => '',
-            'password' => '',
             'name_err' => '',
             'username_err' => '',
             'email_err' => '',
@@ -88,13 +85,12 @@ class Users extends Controller
       if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
          // Sanitize inputs
-         $_POST = filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING);
+         $this->formData = filteration($_POST);
          // Initialize data array
          $this->data = [
             'title' => 'Login',
             'description' => 'Please, Login to proceed',
-            'email' => trim($_POST['email']),
-            'password' => trim($_POST['password']),
+            'email' => $this->formData['email'],
             'email_err' => '',
             'password_err' => '',
          ];
@@ -110,20 +106,16 @@ class Users extends Controller
             $this->data['email_err'] = 'No user for this account';
          }
 
-         // Validate password
-         if (empty($this->data['password'])) {
-            $this->data['password_err'] = 'Please, enter password';
-         }
+         // Email-only login: if email is valid and exists, log the user in without password
 
          // Make sure errors are empty
-         if (empty($this->data['email_err']) && empty($this->data['password_err'])) {
-            // Success
-            $loginUsers = $this->userModel->login($this->data['email'], $this->data['password']);
+         if (empty($this->data['email_err'])) {
+            $loginUsers = $this->userModel->getUserByEmail($this->data['email']);
 
             if ($loginUsers) {
                $this->createLoggedinSession($loginUsers);
             } else {
-               $this->data['password_err'] = 'Password is incorrect';
+               $this->data['email_err'] = 'No user for this email';
                $this->view('users/login', $this->data);
             }
          } else {
@@ -135,7 +127,6 @@ class Users extends Controller
             'title' => 'Login',
             'description' => 'Please, Login to proceed',
             'email' => '',
-            'password' => '',
             'email_err' => '',
             'password_err' => '',
          ];
@@ -146,18 +137,32 @@ class Users extends Controller
    // CHECK LOGGED IN USER
    public function createLoggedinSession($users)
    {
-      $_SESSION['email'] = $this->data['email'];
-      $_SESSION['password'] = $this->data['password'];
+      if (is_object($users)) {
+         if (isset($users->id)) {
+            $_SESSION['user_id'] = $users->id;
+         }
+         if (isset($users->email)) {
+            $_SESSION['email'] = $users->email;
+         }
+         if (isset($users->username)) {
+            $_SESSION['username'] = $users->username;
+         }
+         if (isset($users->name)) {
+            $_SESSION['name'] = $users->name;
+         }
+      }
 
-      // redirect URL on SUCCESS ->>>
-      redirect('pages/success');
+      // redirect URL on SUCCESS ->>>  
+      redirect('barcode/myCodes');
    }
 
    // USER LOGOUT SESSION
    public function logout()
    {
       unset($_SESSION['email']);
-      unset($_SESSION['password']);
+      unset($_SESSION['user_id']);
+      unset($_SESSION['username']);
+      unset($_SESSION['name']);
       session_destroy();
       redirect('users/login');
    }
