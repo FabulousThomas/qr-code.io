@@ -7,7 +7,7 @@
 class Core
 {
    private $currentController = 'Index';
-   private $currentMethod = 'Index';
+   private $currentMethod = 'index';
    private $params = [];
 
    /**
