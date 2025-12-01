@@ -3,7 +3,7 @@
  * Barcode and QR Code Model
  * Handles saving and retrieving barcodes and QR codes from database
  */
-class BarcodeQr
+class BarcodeQrModel
 {
     private $db;
 
@@ -21,7 +21,8 @@ class BarcodeQr
         $imageData = $data['imageData'] ?? '';
         $imagePath = $data['imagePath'] ?? '';
         $customization = isset($data['customization']) && !empty($data['customization']) ? json_encode($data['customization']) : null;
-        $userId = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
+        $userId = $data['user_id'] ?? null;
+        $email = $data['email'] ?? null;
         $sessionId = session_id();
 
         $dataUriForStorage = $this->prepareDataUriForStorage($imageData, null, $format);
@@ -38,8 +39,8 @@ class BarcodeQr
             $dataUriForStorage = $this->prepareDataUriForStorage(null, $imagePath, $format);
         }
 
-        $this->db->query('INSERT INTO codes (type, value, format, image_data, image_path, customization_options, user_id, session_id, created_at) 
-                         VALUES (:type, :value, :format, :image_data, :image_path, :customization, :user_id, :session_id, NOW())');
+        $this->db->query('INSERT INTO codes (type, value, format, image_data, image_path, customization_options, user_id, email, session_id, created_at) 
+                         VALUES (:type, :value, :format, :image_data, :image_path, :customization, :user_id, :email, :session_id, NOW())');
 
         $this->db->bind(':type', $type);
         $this->db->bind(':value', $value);
@@ -48,6 +49,7 @@ class BarcodeQr
         $this->db->bind(':image_path', $imagePath);
         $this->db->bind(':customization', $customization);
         $this->db->bind(':user_id', $userId);
+        $this->db->bind(':email', $email);
         $this->db->bind(':session_id', $sessionId);
 
         if ($this->db->execute()) {
@@ -167,6 +169,59 @@ class BarcodeQr
         return $this->db->resultSet();
     }
 
+    public function attachSessionCodesToUser($sessionId, $userId)
+    {
+        if (empty($sessionId) || empty($userId)) {
+            return false;
+        }
+
+        $this->db->query('UPDATE codes SET user_id = :user_id WHERE session_id = :session_id AND (user_id IS NULL OR user_id = 0)');
+        $this->db->bind(':user_id', $userId);
+        $this->db->bind(':session_id', $sessionId);
+
+        return $this->db->execute();
+    }
+
+    public function attachCodesToUserAndEmailByIds(array $ids, $userId, $email)
+    {
+        if (empty($ids) || empty($email)) {
+            return false;
+        }
+
+        // Build a dynamic IN (...) clause with named placeholders
+        $placeholders = [];
+        foreach ($ids as $index => $id) {
+            $placeholders[] = ':id' . $index;
+        }
+
+        // Fixed: Always update user_id and email, don't use COALESCE
+        $sql = 'UPDATE codes SET user_id = :user_id, email = :email WHERE id IN (' . implode(',', $placeholders) . ')';
+        $this->db->query($sql);
+        $this->db->bind(':user_id', (int) $userId);
+        $this->db->bind(':email', $email);
+
+        foreach ($ids as $index => $id) {
+            $this->db->bind(':id' . $index, (int) $id);
+        }
+
+        return $this->db->execute();
+    }
+
+    public function attachSessionCodesToUserAndEmail($sessionId, $userId, $email)
+    {
+        if (empty($sessionId) || empty($email)) {
+            return false;
+        }
+
+        // Fixed: Always update user_id and email, don't use COALESCE
+        $this->db->query('UPDATE codes SET user_id = :user_id, email = :email WHERE session_id = :session_id');
+        $this->db->bind(':user_id', (int) $userId);
+        $this->db->bind(':email', $email);
+        $this->db->bind(':session_id', $sessionId);
+
+        return $this->db->execute();
+    }
+
     // Get code by ID
     public function getById($id)
     {
@@ -186,6 +241,28 @@ class BarcodeQr
         $this->db->query('DELETE FROM codes WHERE id = :id');
         $this->db->bind(':id', $id);
         return $this->db->execute();
+    }
+
+    public function getQrCodeById($id)
+    {
+        $this->db->query('SELECT * FROM codes WHERE id = :id');
+        $this->db->bind(':id', $id);
+        return $this->db->singleSet();
+    }
+
+    public function getByValueAndUser($value, $userId)
+    {
+        $this->db->query('SELECT * FROM codes WHERE value = :value AND user_id = :user_id');
+        $this->db->bind(':value', $value);
+        $this->db->bind(':user_id', $userId);
+        return $this->db->singleSet();
+    }
+
+    public function getByValue($value)
+    {
+        $this->db->query('SELECT * FROM codes WHERE value = :value');
+        $this->db->bind(':value', $value);
+        return $this->db->singleSet();
     }
 
     public function updateImage($id, $imageData)
@@ -429,5 +506,15 @@ class BarcodeQr
         }
 
         return $header . ',' . $base64;
+    }
+    
+    // Update QR code value
+    public function updateValue($id, $newValue)
+    {
+        $this->db->query('UPDATE codes SET value = :value WHERE id = :id');
+        $this->db->bind(':value', $newValue);
+        $this->db->bind(':id', $id);
+        
+        return $this->db->execute();
     }
 }
