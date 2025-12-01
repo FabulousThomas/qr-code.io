@@ -1,0 +1,11 @@
+ssid,password,security
+HomeNetwork,MyPassword123,WPA
+GuestWiFi,guest123,WPA
+OfficeNet,office456,WPA2
+CoffeeShop,freecoffee,WPA
+HotelWiFi,hotel789,WPA2
+Restaurant,menu2023,WPA
+Library,study456,WPA2
+Airport,travel123,WPA
+Hospital,patient789,WPA2
+School,campus456,WPA
