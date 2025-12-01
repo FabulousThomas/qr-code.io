@@ -21,10 +21,15 @@ define('DB_NAME', getenv('DB_NAME') ?: 'qrcode');
 // SITE PARAMS
 // App root directory
 define("APPROOT", dirname(dirname(__FILE__)));
-// Url root
-define("URLROOT", getenv('APP_URL') ?: "http://localhost/qr-code.io");
+// Url root - use dynamic IP for QR code tracking to work from phones
+$serverIP = $_SERVER['SERVER_ADDR'] ?? '127.0.0.1';
+if ($serverIP === '127.0.0.1') {
+    $serverIP = getHostByName(getHostName());
+}
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
+define("URLROOT", "http://localhost/qr-code.io");
 // Site Name
-define("SITENAME", "QRCode Generator");
+define("SITENAME", "QBhub.io");
 // App version
 define('APPVERSION', '1.0.0');
 
@@ -68,6 +73,62 @@ if ($autoMigrate) {
          `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
          PRIMARY KEY (`id`),
          UNIQUE KEY `uniq_email` (`email`)
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Create qr_code_scans table for analytics tracking
+      $conn->query("CREATE TABLE IF NOT EXISTS `qr_code_scans` (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `qr_code_id` INT NOT NULL,
+         `scanned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         `ip_address` VARCHAR(45),
+         `user_agent` TEXT,
+         `referrer` TEXT,
+         `country` VARCHAR(100),
+         `city` VARCHAR(100),
+         `device_type` VARCHAR(50),
+         `browser` VARCHAR(100),
+         FOREIGN KEY (`qr_code_id`) REFERENCES `codes`(`id`) ON DELETE CASCADE,
+         INDEX `idx_qr_code_id` (`qr_code_id`),
+         INDEX `idx_scanned_at` (`scanned_at`),
+         INDEX `idx_ip_address` (`ip_address`)
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Create qr_analytics summary table for faster reporting
+      $conn->query("CREATE TABLE IF NOT EXISTS `qr_analytics` (
+         `qr_code_id` INT PRIMARY KEY,
+         `scan_count` INT DEFAULT 0,
+         `unique_scans` INT DEFAULT 0,
+         `first_scanned` TIMESTAMP NULL,
+         `last_scanned` TIMESTAMP NULL,
+         `last_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+         FOREIGN KEY (`qr_code_id`) REFERENCES `codes`(`id`) ON DELETE CASCADE
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Add missing columns to qr_analytics table if they don't exist
+      $conn->query("ALTER TABLE `qr_analytics` 
+         ADD COLUMN IF NOT EXISTS `user_agent` TEXT NULL,
+         ADD COLUMN IF NOT EXISTS `ip_address` VARCHAR(45) NULL,
+         ADD COLUMN IF NOT EXISTS `country` VARCHAR(100) NULL,
+         ADD COLUMN IF NOT EXISTS `city` VARCHAR(100) NULL,
+         ADD COLUMN IF NOT EXISTS `referrer` TEXT NULL");
+
+      // Create qr_scan_events table for detailed scan tracking
+      $conn->query("CREATE TABLE IF NOT EXISTS `qr_scan_events` (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `qr_code_id` INT NOT NULL,
+         `event_type` VARCHAR(50) NOT NULL DEFAULT 'scan',
+         `scanned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         `ip_address` VARCHAR(45),
+         `user_agent` TEXT,
+         `referrer` TEXT,
+         `country` VARCHAR(100),
+         `city` VARCHAR(100),
+         `device_type` VARCHAR(50),
+         `browser` VARCHAR(100),
+         FOREIGN KEY (`qr_code_id`) REFERENCES `codes`(`id`) ON DELETE CASCADE,
+         INDEX `idx_qr_code_id` (`qr_code_id`),
+         INDEX `idx_scanned_at` (`scanned_at`),
+         INDEX `idx_event_type` (`event_type`)
       ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
    }
 }
