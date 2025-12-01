@@ -4,31 +4,34 @@ class PaymentController extends Controller {
     private $security;
     
     public function __construct() {
+        require_once APPROOT . '/middleware/SecurityMiddleware.php';
         $this->security = new SecurityMiddleware();
         $this->security->applySecurityHeaders();
         
         // Apply rate limiting to all payment endpoints
-        $this->security->checkRateLimit($_SERVER['REMOTE_ADDR']);
+        $clientIp = $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '127.0.0.1';
+        $this->security->checkRateLimit($clientIp);
         
         // Initialize secure session
         $this->initSecureSession();
     }
     
     private function initSecureSession() {
-        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
-        $httponly = true;
-        
-        $cookieParams = session_get_cookie_params();
-        session_set_cookie_params([
-            'lifetime' => $cookieParams['lifetime'],
-            'path' => '/',
-            'domain' => $_SERVER['HTTP_HOST'] ?? '',
-            'secure' => $secure,
-            'httponly' => $httponly,
-            'samesite' => 'Lax'
-        ]);
-        
+        // Only set cookie params if session is not active
         if (session_status() === PHP_SESSION_NONE) {
+            $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+            $httponly = true;
+            
+            $cookieParams = session_get_cookie_params();
+            session_set_cookie_params([
+                'lifetime' => $cookieParams['lifetime'],
+                'path' => '/',
+                'domain' => $_SERVER['HTTP_HOST'] ?? '',
+                'secure' => $secure,
+                'httponly' => $httponly,
+                'samesite' => 'Lax'
+            ]);
+            
             session_start();
         }
     }
@@ -58,6 +61,52 @@ class PaymentController extends Controller {
                 // Mark payment as completed
                 $_SESSION['payment_completed'] = true;
                 $_SESSION['payment_reference'] = $reference;
+                
+                // Transfer ownership of QR codes to logged-in user
+                if (isset($_SESSION['user_id']) && isset($_SESSION['email']) && !empty($_SESSION['cart'])) {
+                    $barcodeQrModel = $this->model('BarcodeQrModel');
+                    
+                    // Collect IDs of codes in the current cart
+                    $codeIds = [];
+                    foreach ($_SESSION['cart'] as $item) {
+                        // First priority: Check for direct db_id in cart items
+                        if (!empty($item['db_id'])) {
+                            $codeIds[] = $item['db_id'];
+                        }
+                        
+                        // Second priority: For QR code items, get saved ID from session mapping
+                        if (($item['type'] ?? '') === 'qrcode' && !empty($item['qrCodeValue']) && !empty($_SESSION['qr_saved_ids']) && is_array($_SESSION['qr_saved_ids'])) {
+                            $qrValue = $item['qrCodeValue'];
+                            
+                            // Try exact match first
+                            if (!empty($_SESSION['qr_saved_ids'][$qrValue])) {
+                                $codeIds[] = $_SESSION['qr_saved_ids'][$qrValue];
+                            } else {
+                                // Try to find by checking if any saved ID value matches the tracking URL pattern
+                                foreach ($_SESSION['qr_saved_ids'] as $savedKey => $savedId) {
+                                    if (strpos($qrValue, 'analytics/track?id=' . $savedId) !== false || 
+                                        strpos($savedKey, 'analytics/track?id=' . $savedId) !== false) {
+                                        $codeIds[] = $savedId;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // For barcode items, get saved_ids directly
+                        if (!empty($item['saved_ids']) && is_array($item['saved_ids'])) {
+                            $codeIds = array_merge($codeIds, $item['saved_ids']);
+                        }
+                    }
+                    
+                    $codeIds = array_values(array_unique(array_filter($codeIds)));
+                    
+                    // Transfer ownership to logged-in user
+                    if (!empty($codeIds)) {
+                        $barcodeQrModel->attachCodesToUserAndEmailByIds($codeIds, $_SESSION['user_id'], $_SESSION['email']);
+                        error_log("Transferred ownership of " . count($codeIds) . " codes to user {$_SESSION['user_id']} ({$_SESSION['email']})");
+                    }
+                }
                 
                 // Clear cart after successful payment
                 if (isset($_SESSION['cart'])) {

@@ -1,6 +1,18 @@
 <?php
 require_once APPROOT . '/middleware/SecurityMiddleware.php';
 
+// Load QR code library
+if (file_exists(APPROOT . '/../vendor/autoload.php')) {
+    require_once APPROOT . '/../vendor/autoload.php';
+} else {
+    require_once 'vendor/autoload.php';
+}
+
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Encoding\Encoding;
+use Endroid\QrCode\Color\Color;
+use Endroid\QrCode\Writer\PngWriter;
+
 class Barcode extends Controller
 {
     private $data = '';
@@ -86,6 +98,30 @@ class Barcode extends Controller
         return $result;
     }
 
+    // Generate QR code for automatic barcode tracking
+    private function generateTrackingQrCode($trackingUrl, $barcode)
+    {
+        try {
+            // Create QR code with tracking URL
+            $qrCode = new QrCode(
+                data: $trackingUrl,
+                encoding: new Encoding('UTF-8'),
+                size: 200,
+                margin: 10,
+                foregroundColor: new Color(0, 0, 0),
+                backgroundColor: new Color(255, 255, 255),
+            );
+
+            $writer = new PngWriter();
+            $result = $writer->write($qrCode);
+            
+            return $result->getDataUri();
+        } catch (Exception $e) {
+            // Return default QR code if generation fails
+            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+        }
+    }
+
     public function __construct()
     {
     }
@@ -154,7 +190,7 @@ class Barcode extends Controller
             }
 
             // Load the model
-            $barcodeQrModel = $this->model('BarcodeQr');
+            $barcodeQrModel = $this->model('BarcodeQrModel');
 
             // Add the barcodes to the cart and save to database
             $savedIds = [];
@@ -220,10 +256,23 @@ class Barcode extends Controller
                         ]
                     ];
 
+                    // Add user_id if logged in
+                    if (isset($_SESSION['user_id'])) {
+                        $saveData['user_id'] = $_SESSION['user_id'];
+                    }
+
                     $id = $barcodeQrModel->save($saveData);
                     if ($id) {
                         $savedIds[] = $id;
                         $itemSavedIds[] = $id;
+                        
+                        // Create automatic tracking QR code for this barcode
+                        $trackingUrl = URLROOT . "/analytics/track?id=" . $id;
+                        $barcode['tracking_url'] = $trackingUrl;
+                        $barcode['auto_qr_code'] = true;
+                        
+                        // Generate QR code that points to barcode analytics
+                        $barcode['qr_tracking_image'] = $this->generateTrackingQrCode($trackingUrl, $barcode);
                     }
                 }
 
@@ -281,7 +330,7 @@ class Barcode extends Controller
                 $_SESSION['barcodeValue'] = $barcodeValues;
 
                 // Add to cart and database
-                $barcodeQrModel = $this->model('BarcodeQr');
+                $barcodeQrModel = $this->model('BarcodeQrModel');
                 $savedIds = [];
 
                 // Create cart item
@@ -446,7 +495,7 @@ class Barcode extends Controller
 
         // Delete associated database records and images, if any
         try {
-            $barcodeQrModel = $this->model('BarcodeQr');
+            $barcodeQrModel = $this->model('BarcodeQrModel');
 
             $idsToDelete = [];
 
@@ -561,14 +610,16 @@ class Barcode extends Controller
             $security = new SecurityMiddleware();
             $security->regenerateSessionId();
             $newSessionId = session_id();
-            
-            // Log session regeneration for debugging
-            error_log("Payment successful - Session ID regenerated from: $oldSessionId to: $newSessionId");
 
             // Collect IDs of codes in the current cart
             $codeIds = [];
             if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
                 foreach ($_SESSION['cart'] as $item) {
+                    // First priority: Check for direct db_id in cart items
+                    if (!empty($item['db_id'])) {
+                        $codeIds[] = $item['db_id'];
+                    }
+                    
                     // For barcode items, get saved_ids directly
                     if (!empty($item['saved_ids']) && is_array($item['saved_ids'])) {
                         $codeIds = array_merge($codeIds, $item['saved_ids']);
@@ -579,21 +630,26 @@ class Barcode extends Controller
                         $qrValue = $item['qrCodeValue'];
                         if (!empty($_SESSION['qr_saved_ids'][$qrValue])) {
                             $codeIds[] = $_SESSION['qr_saved_ids'][$qrValue];
+                        } else {
+                            // Try to find by checking if any saved ID value matches the tracking URL pattern
+                            foreach ($_SESSION['qr_saved_ids'] as $savedKey => $savedId) {
+                                if (strpos($qrValue, 'analytics/track?id=' . $savedId) !== false || 
+                                    strpos($savedKey, 'analytics/track?id=' . $savedId) !== false) {
+                                    $codeIds[] = $savedId;
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
             }
 
             $codeIds = array_values(array_unique(array_filter($codeIds)));
-            
-            // Debug: Log collected code IDs
-            error_log("Payment processing - Collected code IDs: " . print_r($codeIds, true));
-            error_log("Payment processing - QR saved IDs in session: " . print_r($_SESSION['qr_saved_ids'] ?? [], true));
 
             // Create or find user by email and attach only current-cart codes
             $userModel = $this->model('User');
             $user = $userModel->findOrCreateByEmail($email);
-            $barcodeQrModel = $this->model('BarcodeQr');
+            $barcodeQrModel = $this->model('BarcodeQrModel');
 
             if (!empty($codeIds)) {
                 if ($user && isset($user->id)) {
@@ -647,7 +703,7 @@ class Barcode extends Controller
         }
 
         try {
-            $barcodeQrModel = $this->model('BarcodeQr');
+            $barcodeQrModel = $this->model('BarcodeQrModel');
 
             if ($barcodeId) {
                 // Update existing barcode record with image data
@@ -717,7 +773,7 @@ class Barcode extends Controller
         }
 
         // Load the model and update the barcode with image data
-        $barcodeQrModel = $this->model('BarcodeQr');
+        $barcodeQrModel = $this->model('BarcodeQrModel');
         $result = $barcodeQrModel->updateImage($barcodeId, $imageData);
 
         if ($result) {
@@ -824,7 +880,7 @@ class Barcode extends Controller
                     // Create or find user by email and attach only current-cart codes
                     $userModel = $this->model('User');
                     $user = $userModel->findOrCreateByEmail($email);
-                    $barcodeQrModel = $this->model('BarcodeQr');
+                    $barcodeQrModel = $this->model('BarcodeQrModel');
                     if (!empty($codeIds)) {
                         if ($user && isset($user->id)) {
                             $_SESSION['user_id'] = $user->id;
@@ -880,6 +936,11 @@ class Barcode extends Controller
                 $codeIds = [];
                 if (!empty($_SESSION['cart']) && is_array($_SESSION['cart'])) {
                     foreach ($_SESSION['cart'] as $item) {
+                        // First priority: Check for direct db_id in cart items
+                        if (!empty($item['db_id'])) {
+                            $codeIds[] = $item['db_id'];
+                        }
+                        
                         // For barcode items, get saved_ids directly
                         if (!empty($item['saved_ids']) && is_array($item['saved_ids'])) {
                             $codeIds = array_merge($codeIds, $item['saved_ids']);
@@ -890,6 +951,15 @@ class Barcode extends Controller
                             $qrValue = $item['qrCodeValue'];
                             if (!empty($_SESSION['qr_saved_ids'][$qrValue])) {
                                 $codeIds[] = $_SESSION['qr_saved_ids'][$qrValue];
+                            } else {
+                                // Try to find by checking if any saved ID value matches the tracking URL pattern
+                                foreach ($_SESSION['qr_saved_ids'] as $savedKey => $savedId) {
+                                    if (strpos($qrValue, 'analytics/track?id=' . $savedId) !== false || 
+                                        strpos($savedKey, 'analytics/track?id=' . $savedId) !== false) {
+                                        $codeIds[] = $savedId;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
@@ -900,7 +970,7 @@ class Barcode extends Controller
                 // Create or find user by email and attach only current-cart codes
                 $userModel = $this->model('User');
                 $user = $userModel->findOrCreateByEmail($email);
-                $barcodeQrModel = $this->model('BarcodeQr');
+                $barcodeQrModel = $this->model('BarcodeQrModel');
                 if (!empty($codeIds)) {
                     if ($user && isset($user->id)) {
                         $_SESSION['user_id'] = $user->id;
@@ -961,7 +1031,7 @@ class Barcode extends Controller
             exit;
         }
 
-        $barcodeQrModel = $this->model('BarcodeQr');
+        $barcodeQrModel = $this->model('BarcodeQrModel');
         $sessionId = session_id();
         if (!empty($_SESSION['user_id'])) {
             $codes = $barcodeQrModel->getByUser($_SESSION['user_id']);
@@ -1012,7 +1082,7 @@ class Barcode extends Controller
             redirect('users/login');
         }
 
-        $barcodeQrModel = $this->model('BarcodeQr');
+        $barcodeQrModel = $this->model('BarcodeQrModel');
         $codes = $barcodeQrModel->getByUser($_SESSION['user_id'] ?? '');
         $codesWithImages = [];
 
@@ -1039,7 +1109,7 @@ class Barcode extends Controller
             'codes' => $codesWithImages,
         ];
 
-        $this->view('barcode/my-codes', $data);
+        $this->view('users/myCodes', $data);
     }
 
     public function downloadAll()
@@ -1049,7 +1119,7 @@ class Barcode extends Controller
             exit;
         }
 
-        $barcodeQrModel = $this->model('BarcodeQr');
+        $barcodeQrModel = $this->model('BarcodeQrModel');
         $sessionId = session_id();
         if (!empty($_SESSION['user_id'])) {
             $codes = $barcodeQrModel->getByUser($_SESSION['user_id']);
