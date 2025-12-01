@@ -12,31 +12,26 @@
          <form action="<?= URLROOT; ?>/users/register" method="POST" enctype="multipart/form-data">
 
             <div class="form-group mb-2">
-               <label class="mb-0" for="name">Name</label>
-               <input type="text" class="form-control <?= (!empty($data['name_err'])) ? 'is-invalid' : ''; ?> rounded-0" name="name" placeholder="Enter Full Name" value="<?= $data['name'] ?>">
+               <label class="mb-0 font-color-black" for="name">Name</label>
+               <input type="text" class="form-control <?= (!empty($data['name_err'])) ? 'is-invalid' : ''; ?> rounded-0 shadow-none font-color-black" name="name" placeholder="Enter Full Name" value="<?= $data['name'] ?? '' ?>">
                <small class="invalid-feedback"><?= $data['name_err'] ?></small>
             </div>
             <div class="form-group mb-2">
-               <label class="mb-0" for="username">Username</label>
-               <input type="text" class="form-control <?= (!empty($data['username_err'])) ? 'is-invalid' : ''; ?> rounded-0" name="username" placeholder="Enter Username" value="<?= $data['username'] ?>">
+               <label class="mb-0 font-color-black" for="username">Username</label>
+               <input type="text" class="form-control <?= (!empty($data['username_err'])) ? 'is-invalid' : ''; ?> rounded-0 shadow-none font-color-black" name="username" placeholder="Enter Username" value="<?= $data['username'] ?? '' ?>">
                <small class="invalid-feedback"><?= $data['username_err'] ?></small>
             </div>
             <div class="form-group mb-2">
-               <label class="mb-0" for="email">Email</label>
-               <input type="email" class="form-control <?= (!empty($data['email_err'])) ? 'is-invalid' : ''; ?> rounded-0" name="email" placeholder="Enter Email" value="<?= $data['email'] ?>">
+               <label class="mb-0 font-color-black" for="email">Email</label>
+               <input type="email" class="form-control <?= (!empty($data['email_err'])) ? 'is-invalid' : ''; ?> rounded-0 shadow-none font-color-black" name="email" placeholder="Enter Email" value="<?= $data['email'] ?? '' ?>">
                <small class="invalid-feedback"><?= $data['email_err'] ?></small>
-            </div>
-            <div class="form-group mb-2">
-               <label class="mb-0" for="password">Password</label>
-               <input type="password" class="form-control <?= (!empty($data['password_err'])) ? 'is-invalid' : ''; ?> rounded-0" name="password" placeholder="Enter Password" value="<?= $data['password'] ?>">
-               <small class="invalid-feedback"><?= $data['password_err'] ?></small>
             </div>
             <div class="form-group row">
                <div class="col">
-                  <input type="submit" value="Register" class="btn btn-primary form-control">
+                  <button type="submit" class="btn btn-success shadow-none form-control">Register</button>
                </div>
                <div class="col">
-                  <a href="<?= URLROOT; ?>/users/login" class="btn btn-light form-control">Or Login</a>
+                  <a href="<?= URLROOT; ?>/users/login" class="btn btn-light shadow-none form-control">Or Login</a>
                </div>
             </div>
          </form>
@@ -44,4 +39,4 @@
    </div>
 </div>
 
-<?php require APPROOT . '/views/inc/footer.php' ?>
+<?php require APPROOT . '/views/inc/footer.php'; ?>
