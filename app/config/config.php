@@ -13,10 +13,10 @@ if (session_status() === PHP_SESSION_NONE) {
    session_start();
 }
 
-define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') ?: '');
-define('DB_NAME', getenv('DB_NAME') ?: 'qrcode');
+define('DB_HOST', $_ENV['DB_HOST'] ?: 'localhost');
+define('DB_USER', $_ENV['DB_USER'] ?: 'root');
+define('DB_PASS', $_ENV['DB_PASS'] ?: '');
+define('DB_NAME', $_ENV['DB_NAME'] ?: 'qrcode');
 
 // SITE PARAMS
 // App root directory
@@ -35,7 +35,7 @@ define('APPVERSION', '1.0.0');
 
 // Optional local auto-migration (guarded)
 $isLocal = in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1'], true);
-$autoMigrate = getenv('AUTO_MIGRATE') !== false ? (bool) intval(getenv('AUTO_MIGRATE')) : $isLocal;
+$autoMigrate = $_ENV['AUTO_MIGRATE'] !== false ? (bool) intval($_ENV['AUTO_MIGRATE']) : $isLocal;
 if ($autoMigrate) {
    if (!$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS)) {
       die('CONNECTION FAILED');
