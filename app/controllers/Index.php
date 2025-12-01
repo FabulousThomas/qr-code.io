@@ -23,13 +23,9 @@ class Index extends Controller
 
     public function __construct()
     {
-        error_log("Index controller constructor called");
     }
     public function index()
     {
-        error_log("Index controller index method called");
-        error_log("REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
-        error_log("POST data: " . print_r($_POST, true));
         // When user returns to generator after a completed payment, start a fresh session for locking
         if (isset($_SESSION['payment_completed']) && $_SESSION['payment_completed']) {
             unset(
@@ -107,50 +103,25 @@ class Index extends Controller
     // Function to handle the generation of the QR code
     private function generateQRCode()
     {
-        // Debug: Log when method is called
-        error_log("generateQRCode() method called");
-        error_log("REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD']);
-        error_log("POST data: " . print_r($_POST, true));
-        error_log("REQUEST data: " . print_r($_REQUEST, true));
-        
-        // Debug: Check which button was pressed
-        if (isset($_REQUEST['btnSMS'])) {
-            error_log("btnSMS button detected");
-        }
-        if (isset($_REQUEST['btnVCard'])) {
-            error_log("btnVCard button detected");
-        }
-        if (isset($_REQUEST['btnWhatsApp'])) {
-            error_log("btnWhatsApp button detected");
-        }
-        
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            error_log("POST request detected");
             if (!isset($_POST['csrf_token'])) {
-                error_log("CSRF token missing");
                 alert('message', 'Invalid or missing CSRF token');
                 return;
             }
             if (!function_exists('csrf_verify')) {
-                error_log("csrf_verify function not found");
                 alert('message', 'CSRF verification function not available');
                 return;
             }
             if (!csrf_verify($_POST['csrf_token'])) {
-                error_log("CSRF validation failed");
                 alert('message', 'Invalid or missing CSRF token');
                 return;
             }
-            error_log("CSRF validation passed");
         } else {
-            error_log("Not a POST request - QR code generation skipped");
             return;
         }
         // URL QR CODE
         if (isset($_REQUEST['btnUrl'])) {
-            error_log("Processing URL QR Code generation");
             $qrCodeData = $_REQUEST['qrUrl'];
-            error_log("QR Code Data: " . $qrCodeData);
 
             $_SESSION['lastQrCodeData'] = $qrCodeData;
             $this->renderQrCode($qrCodeData);
@@ -161,9 +132,7 @@ class Index extends Controller
 
         // TEXT QR CODE
         if (isset($_REQUEST['btnText'])) {
-            error_log("Processing Text QR Code generation");
             $qrCodeData = $_REQUEST['qrText'];
-            error_log("QR Code Data: " . $qrCodeData);
 
             $_SESSION['lastQrCodeData'] = $qrCodeData;
             $this->renderQrCode($qrCodeData);
@@ -174,14 +143,10 @@ class Index extends Controller
 
         // SMS QR Code MESSAGES
         if (isset($_REQUEST['btnSMS'])) {
-            error_log("Processing SMS QR Code generation");
             // Format the data for an SMS QR code
             $num = (string) ($_REQUEST['qrSMSnum'] ?? '');
             $msg = (string) ($_REQUEST['qrSMSmsg'] ?? '');
-            error_log("SMS Number: " . $num);
-            error_log("SMS Message: " . $msg);
             $qrCodeData = 'smsto:' . $num . ':' . rawurlencode($msg);
-            error_log("SMS QR Code Data: " . $qrCodeData);
 
             $_SESSION['lastQrCodeData'] = $qrCodeData;
             $this->renderQrCode($qrCodeData);
@@ -221,7 +186,6 @@ class Index extends Controller
 
         // VCARD QR codes
         if (isset($_REQUEST['btnVCard'])) {
-            error_log("Processing V-Card QR Code generation");
             // Format the data for a vCard QR code
             $qrCodeData = "BEGIN:VCARD\n";
             $qrCodeData .= "VERSION:3.0\n";
@@ -230,7 +194,6 @@ class Index extends Controller
             $qrCodeData .= "EMAIL:" . ($_REQUEST['qrVcardEmail'] ?? '') . "\n";
             $qrCodeData .= "ADR:" . ($_REQUEST['qrVcardAdd'] ?? '') . "\n";
             $qrCodeData .= "END:VCARD";
-            error_log("V-Card QR Code Data: " . $qrCodeData);
 
             $_SESSION['lastQrCodeData'] = $qrCodeData;
             $this->renderQrCode($qrCodeData);
@@ -256,12 +219,8 @@ class Index extends Controller
 
         // WHATSAPP QR CODE 
         if (isset($_REQUEST['btnWhatsApp'])) {
-            error_log("Processing WhatsApp QR Code generation");
             // Format the data for a WhatsApp message QR code
             $qrCodeData = 'https://wa.me/' . urlencode($_REQUEST['qrWhatsappNum'] ?? '') . '?text=' . urlencode($_REQUEST['qrWhatsappMsg'] ?? '');
-            error_log("WhatsApp Number: " . ($_REQUEST['qrWhatsappNum'] ?? ''));
-            error_log("WhatsApp Message: " . ($_REQUEST['qrWhatsappMsg'] ?? ''));
-            error_log("WhatsApp QR Code Data: " . $qrCodeData);
 
             $_SESSION['lastQrCodeData'] = $qrCodeData;
             $this->renderQrCode($qrCodeData);
@@ -345,18 +304,42 @@ class Index extends Controller
         }
 
         $format = $_SESSION['customize']['qrCodeFormat'] ?? 'PNG';
+        
+        // Always use tracking URL for QR codes (not just for logged-in users)
+        $qrCodeValue = $qrCodeData;
+        $trackingUrl = null;
+        
+        // Check if this QR code already exists in database
+        $barcodeQrModel = $this->model('BarcodeQrModel');
+        $existingQr = null;
+        
+        // Try to find existing QR code by value (with or without user)
+        if (isset($_SESSION['user_id'])) {
+            $existingQr = $barcodeQrModel->getByValueAndUser($qrCodeData, $_SESSION['user_id']);
+        } else {
+            // For non-logged-in users, try to find by value only
+            $existingQr = $barcodeQrModel->getByValue($qrCodeData);
+        }
+        
+        if ($existingQr) {
+            $trackingUrl = URLROOT . "/analytics/track?id=" . $existingQr->id;
+            $qrCodeValue = $trackingUrl; // Use tracking URL in QR code
+        }
+        
         $cartItem = [
             'type' => 'qrcode',
-            'qrCodeValue' => $qrCodeData,
+            'qrCodeValue' => $qrCodeValue,
+            'originalValue' => $qrCodeData, // Keep original for reference
             'qrImageData' => $_SESSION['qrImageData'],
             'format' => $qrType,
             'imageFormat' => $format,
-            'customize' => $_SESSION['customize'] ?? []
+            'customize' => $_SESSION['customize'] ?? [],
+            'tracking_url' => $trackingUrl
         ];
 
         $existingIndex = null;
         foreach ($_SESSION['cart'] as $index => $item) {
-            if (($item['type'] ?? '') === 'qrcode' && ($item['qrCodeValue'] ?? null) === $qrCodeData) {
+            if (($item['type'] ?? '') === 'qrcode' && (($item['originalValue'] ?? $item['qrCodeValue'] ?? null) === $qrCodeData)) {
                 $existingIndex = $index;
                 break;
             }
@@ -374,31 +357,55 @@ class Index extends Controller
             $_SESSION['qr_saved_ids'] = [];
         }
 
-        $barcodeQrModel = $this->model('BarcodeQr');
+        $barcodeQrModel = $this->model('BarcodeQrModel');
         $dbAction = 'created';
         $dbId = null;
 
         if (isset($_SESSION['qr_saved_ids'][$qrCodeData])) {
             $existingId = $_SESSION['qr_saved_ids'][$qrCodeData];
-            if ($barcodeQrModel->updateImage($existingId, $_SESSION['qrImageData'])) {
-                $dbAction = 'updated';
-                $dbId = $existingId;
-            } else {
-                $dbAction = 'failed';
-            }
+            
+            // Keep the original URL in database, don't update with tracking URL
+            // This prevents infinite redirect loops
+            $trackingUrl = URLROOT . "/analytics/track?id=" . $existingId;
+            
+            // Update cart item with tracking URL but keep original in database
+            $cartItem['tracking_url'] = $trackingUrl;
+            $cartItem['qrCodeValue'] = $trackingUrl;
+            
+            $dbId = $existingId;
+            $dbAction = 'updated';
         } else {
+            // Generate tracking URL for new QR codes
+            $trackingUrl = URLROOT . "/analytics/track?id=" . ($dbId ?? 'pending');
+            
             $saveData = [
                 'type' => 'qrcode',
-                'value' => $qrCodeData,
+                'value' => $qrCodeData, // Save original URL, not tracking URL
                 'format' => $qrType,
                 'imageData' => $_SESSION['qrImageData'],
                 'customization' => $_SESSION['customize'] ?? [],
             ];
 
+            // Leave user_id and email as NULL - will be set after payment
+            // This ensures QR codes are only owned by users after successful payment
+
             $dbId = $barcodeQrModel->save($saveData);
             if ($dbId) {
+                // The tracking URL is generated dynamically, not stored in database
+                // This prevents infinite redirect loops
+                
                 $_SESSION['qr_saved_ids'][$qrCodeData] = $dbId;
                 $dbAction = 'created';
+                
+                // Update cart item with tracking URL
+                if ($addedToCart) {
+                    $trackingUrl = URLROOT . "/analytics/track?id=" . $dbId;
+                    $_SESSION['cart'][count($_SESSION['cart']) - 1]['tracking_url'] = $trackingUrl;
+                    $_SESSION['cart'][count($_SESSION['cart']) - 1]['qrCodeValue'] = $trackingUrl;
+                    
+                    // Regenerate QR code image with tracking URL
+                    $this->regenerateQrCodeWithTracking($trackingUrl, $_SESSION['qrImageData']);
+                }
             } else {
                 $dbAction = 'failed';
             }
@@ -408,8 +415,29 @@ class Index extends Controller
             'success' => $dbAction === 'created' || $dbAction === 'updated',
             'db_id' => $dbId,
             'db_action' => $dbAction,
-            'added_to_cart' => $addedToCart
+            'added_to_cart' => $addedToCart,
+            'tracking_url' => $dbId ? URLROOT . "/analytics/track?id=" . $dbId : null
         ];
+    }
+    
+    private function regenerateQrCodeWithTracking($trackingUrl, &$currentImageData)
+    {
+        // Regenerate QR code with tracking URL
+        $qrCode = new QrCode(
+            data: $trackingUrl,
+            encoding: new Encoding('UTF-8'),
+            size: 300,
+            margin: 10,
+            foregroundColor: new Color(0, 0, 0),
+            backgroundColor: new Color(255, 255, 255),
+        );
+
+        $writer = new PngWriter();
+        $result = $writer->write($qrCode);
+        
+        // Update the image data in session
+        $_SESSION['qrImageData'] = $result->getDataUri();
+        $currentImageData = $_SESSION['qrImageData'];
     }
 
     private function renderQrCode($qrCodeData, $fgColor = [0, 0, 0], $bgColor = [255, 255, 255], $size = 300, $margin = 10, $labelText = '', $logoPath = null)

@@ -6,7 +6,7 @@ class SecurityMiddleware {
     private $rateLimitFile;
 
     public function __construct() {
-        $this->config = require_once __DIR__ . '/../config/security.php';
+        $this->config = require __DIR__ . '/../config/security.php';
         $this->rateLimitFile = sys_get_temp_dir() . '/qr_code_rate_limits.json';
         $this->loadRateLimits();
     }
@@ -46,7 +46,9 @@ class SecurityMiddleware {
     }
 
     public function checkRateLimit($identifier) {
-        if (!$this->config['rate_limiting']['enabled'] || in_array($identifier, $this->config['rate_limiting']['ip_whitelist'])) {
+        if (!isset($this->config['rate_limiting']['enabled']) || 
+            !$this->config['rate_limiting']['enabled'] || 
+            (isset($this->config['rate_limiting']['ip_whitelist']) && in_array($identifier, $this->config['rate_limiting']['ip_whitelist']))) {
             return true;
         }
         
