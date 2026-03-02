@@ -1,5 +1,10 @@
 <?php
 require_once APPROOT . '/middleware/SecurityMiddleware.php';
+require_once APPROOT . '/helpers/helpers.php';
+// Logger wrapper (uses Monolog if available)
+if (file_exists(APPROOT . '/libraries/Logger.php')) {
+    require_once APPROOT . '/libraries/Logger.php';
+}
 
 // Load QR code library
 if (file_exists(APPROOT . '/../vendor/autoload.php')) {
@@ -17,6 +22,49 @@ class Barcode extends Controller
 {
     private $data = '';
     private $formData = '';
+    // debug log file name
+    private $debugLogFile = null;
+
+    private function debugLog($message)
+    {
+        // Only log when APP_DEBUG is enabled (avoid storing sensitive data in production)
+        $debugEnv = getenv('APP_DEBUG');
+        if (!($debugEnv !== false && (string)$debugEnv === '1')) {
+            return;
+        }
+
+        // Lazy init debug path
+        if ($this->debugLogFile === null) {
+            $logDir = APPROOT . '/../storage/logs';
+            if (!is_dir($logDir)) {
+                @mkdir($logDir, 0755, true);
+            }
+            $this->debugLogFile = $logDir . '/barcode_debug.log';
+        }
+
+        $entry = '[' . date('Y-m-d H:i:s') . '] ' . trim((string) $message) . PHP_EOL;
+
+        // Rotate/purge if file grows too large or too old
+        try {
+            if (file_exists($this->debugLogFile)) {
+                $maxSize = 5 * 1024 * 1024; // 5MB
+                $fileSize = filesize($this->debugLogFile) ?: 0;
+                if ($fileSize > $maxSize) {
+                    @rename($this->debugLogFile, $this->debugLogFile . '.1');
+                } else {
+                    // purge entries older than 30 days by truncating when mtime > 30 days
+                    $mtime = filemtime($this->debugLogFile) ?: 0;
+                    if (time() - $mtime > 30 * 24 * 3600) {
+                        @unlink($this->debugLogFile);
+                    }
+                }
+            }
+        } catch (Exception $e) {
+            // ignore rotation errors
+        }
+
+        @file_put_contents($this->debugLogFile, $entry, FILE_APPEND | LOCK_EX);
+    }
     
     // Validate barcode value according to selected format
     private function validateBarcodeValue($value, $format)
@@ -46,7 +94,7 @@ class Barcode extends Controller
             }
         } elseif ($format === 'CODE39') {
             $upper = strtoupper($value);
-            if (!preg_match('/^[A-Z0-9 \-\.\$/\+%]*$/', $upper)) {
+            if (!preg_match('/^[A-Z0-9 \-\.\$\/\+\%]*$/', $upper)) {
                 return ['valid' => false, 'message' => 'CODE-39 supports A–Z, 0–9 and - . space $ / + % only.'];
             }
         } elseif ($format === 'CODE128') {
@@ -64,13 +112,31 @@ class Barcode extends Controller
         $format = strtoupper((string) $format);
 
         if ($format === 'EAN13') {
-            // 12-digit numeric (check digit can be handled by consumers if needed)
-            return str_pad((string) random_int(0, 999999999999), 12, '0', STR_PAD_LEFT);
+            // Generate 12 digits + calculate check digit
+            $digits = str_pad((string) random_int(0, 999999999999), 12, '0', STR_PAD_LEFT);
+            
+            // Calculate check digit
+            $sum = 0;
+            for ($i = 0; $i < 12; $i++) {
+                $sum += (int)$digits[$i] * (($i % 2 === 0) ? 1 : 3);
+            }
+            $checkDigit = (10 - ($sum % 10)) % 10;
+            
+            return $digits . $checkDigit;
         }
 
         if ($format === 'UPC') {
-            // 11-digit numeric for UPC-A
-            return str_pad((string) random_int(0, 99999999999), 11, '0', STR_PAD_LEFT);
+            // Generate 11 digits + calculate check digit
+            $digits = str_pad((string) random_int(0, 99999999999), 11, '0', STR_PAD_LEFT);
+            
+            // Calculate check digit
+            $sum = 0;
+            for ($i = 0; $i < 11; $i++) {
+                $sum += (int)$digits[$i] * (($i % 2 === 0) ? 3 : 1);
+            }
+            $checkDigit = (10 - ($sum % 10)) % 10;
+            
+            return $digits . $checkDigit;
         }
 
         if ($format === 'CODE39') {
@@ -127,6 +193,37 @@ class Barcode extends Controller
     }
     public function index()
     {
+        // Admin quick-inspect: show recent codes when requested.
+        // Access rules:
+        // - If APP_ADMIN_TOKEN is set, the caller must provide ?admin_token=... or X-ADMIN-TOKEN header matching it.
+        // - Otherwise, allow only when APP_DEBUG=1.
+        if (isset($_GET['recent_admin'])) {
+            $adminToken = app_admin_token();
+            $allowed = false;
+            if (!empty($adminToken)) {
+                $provided = $_GET['admin_token'] ?? ($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? null);
+                if (!empty($provided) && hash_equals($adminToken, (string)$provided)) {
+                    $allowed = true;
+                }
+            } else {
+                if ((getenv('APP_DEBUG') !== false && (string)getenv('APP_DEBUG') === '1')) {
+                    $allowed = true;
+                }
+            }
+
+            if ($allowed) {
+                $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 25;
+                $model = $this->model('BarcodeQrModel');
+                $codes = $model->getLatest($limit);
+                $data = ['codes' => $codes];
+                $this->view('barcode/recent_admin', $data);
+                return;
+            }
+
+            http_response_code(403);
+            echo 'Access denied.';
+            return;
+        }
         // When user returns to generator after a completed payment, start a fresh session for locking
         if (isset($_SESSION['payment_completed']) && $_SESSION['payment_completed']) {
             unset(
@@ -161,22 +258,41 @@ class Barcode extends Controller
         }
 
         // Handle AJAX POST request for adding barcodes to cart (CHECK THIS FIRST!)
-        $rawInput = file_get_contents('php://input');
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($rawInput) && strpos($contentType, 'application/json') !== false) {
-            // Log the raw input for debugging
-            error_log("Raw input: " . $rawInput);
+        // Prefer the centralized JSON parser helper
+        $input = parse_json_request();
+        $rawInput = file_get_contents('php://input');
 
-            $input = json_decode($rawInput, true);
-            error_log("Decoded input: " . print_r($input, true));
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && is_array($input)) {
+            // Require CSRF token for JSON POST requests
+            $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+            if (empty($csrfToken) || !function_exists('csrf_verify') || !csrf_verify($csrfToken)) {
+                header('Content-Type: application/json');
+                http_response_code(403);
+                echo json_encode(['status' => 'error', 'message' => 'CSRF token invalid or missing']);
+                exit;
+            }
+
+            // Log using wrapper so Monolog can be used when available
+            if (class_exists('Logger')) {
+                Logger::debug('Raw input: ' . $rawInput);
+                Logger::debug('Decoded input: ' . print_r($input, true));
+            } else {
+                $this->debugLog("Raw input: " . $rawInput);
+                $this->debugLog("Decoded input: " . print_r($input, true));
+            }
 
             $barcodes = $input['barcodes'] ?? [];
-            error_log("Barcodes array: " . print_r($barcodes, true));
+            if (class_exists('Logger')) {
+                Logger::debug('Barcodes array: ' . print_r($barcodes, true));
+            } else {
+                $this->debugLog("Barcodes array: " . print_r($barcodes, true));
+            }
 
             if (empty($barcodes)) {
                 header('Content-Type: application/json');
-                error_log("ERROR: Barcodes array is empty!");
+                $this->debugLog("ERROR: Barcodes array is empty!");
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'No barcodes provided',
@@ -241,11 +357,15 @@ class Barcode extends Controller
                     $filename = "barcode-{$cleanValue}-{$timestamp}-{$randomId}.png";
                     $filePath = URLROOT . '/images/barimage/' . $filename;
 
+                    // Generate actual barcode image data using JsBarcode on server side
+                    $imageData = $this->generateBarcodeImageData($cleanValue, $barcode['format'] ?? 'EAN13', $barcode);
+
                     $saveData = [
                         'type' => 'barcode',
                         'value' => $cleanValue,
                         'format' => $barcode['format'] ?? 'EAN13',
-                        'imageData' => $filePath,
+                        'imageData' => $imageData, // Use actual image data, not file path
+                        'imagePath' => $filePath, // Store file path separately
                         'customization' => [
                             'displayValue' => $barcode['displayValue'] ?? 'true',
                             'lineColor' => $barcode['lineColor'] ?? '#000000',
@@ -255,11 +375,6 @@ class Barcode extends Controller
                             'fontSize' => $barcode['fontSize'] ?? '16'
                         ]
                     ];
-
-                    // Add user_id if logged in
-                    if (isset($_SESSION['user_id'])) {
-                        $saveData['user_id'] = $_SESSION['user_id'];
-                    }
 
                     $id = $barcodeQrModel->save($saveData);
                     if ($id) {
@@ -368,7 +483,14 @@ class Barcode extends Controller
                         'type' => 'barcode',
                         'value' => $barcodeVal,
                         'format' => $this->data['format'],
-                        'imageData' => '',
+                        'imageData' => $this->generateBarcodeImageData($barcodeVal, $this->data['format'], [
+                            'displayValue' => $this->data['displayValue'],
+                            'lineColor' => $this->data['lineColor'],
+                            'backgroundColor' => $this->data['backgroundColor'],
+                            'width' => $this->data['width'],
+                            'height' => $this->data['height'],
+                            'fontSize' => $this->data['fontSize']
+                        ]),
                         'customization' => [
                             'displayValue' => $this->data['displayValue'],
                             'lineColor' => $this->data['lineColor'],
@@ -1383,5 +1505,49 @@ class Barcode extends Controller
 
         <?php
         return ob_get_clean();
+    }
+    
+    /**
+     * Generate barcode image data on server side
+     */
+    private function generateBarcodeImageData($value, $format, $options = [])
+    {
+        try {
+            // Use a simple approach - generate SVG barcode and convert to PNG
+            $width = $options['width'] ?? 2;
+            $height = $options['height'] ?? 100;
+            $lineColor = $options['lineColor'] ?? '#000000';
+            $backgroundColor = $options['backgroundColor'] ?? '#FFFFFF';
+            $displayValue = ($options['displayValue'] ?? 'true') === 'true';
+            
+            // Generate a simple placeholder barcode
+            return $this->generatePlaceholderBarcode($value, $format);
+            
+        } catch (Exception $e) {
+            error_log("Failed to generate barcode image data: " . $e->getMessage());
+            return $this->generatePlaceholderBarcode($value, $format);
+        }
+    }
+    
+    /**
+     * Generate placeholder barcode
+     */
+    private function generatePlaceholderBarcode($value, $format)
+    {
+        // Generate a simple placeholder image
+        $image = imagecreatetruecolor(200, 100);
+        $bgColor = imagecolorallocate($image, 255, 255, 255);
+        $textColor = imagecolorallocate($image, 0, 0, 0);
+        
+        imagefill($image, 0, 0, $bgColor);
+        imagestring($image, 3, 10, 30, $format, $textColor);
+        imagestring($image, 2, 10, 50, substr($value, 0, 15), $textColor);
+        
+        ob_start();
+        imagepng($image);
+        imagedestroy($image);
+        $pngData = ob_get_clean();
+        
+        return 'data:image/png;base64,' . base64_encode($pngData);
     }
 }
