@@ -131,4 +131,83 @@ if ($autoMigrate) {
          INDEX `idx_event_type` (`event_type`)
       ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
    }
+
+   // Create bulk operations table with enhanced schema
+   $conn->query("CREATE TABLE IF NOT EXISTS bulk_operations (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `user_id` INT NOT NULL,
+      `type` VARCHAR(50) NOT NULL COMMENT 'upload, delete, archive, generate',
+      `count` INT NOT NULL COMMENT 'Number of items processed',
+      `status` VARCHAR(20) NOT NULL DEFAULT 'success' COMMENT 'success, failed, partial, cancelled',
+      `processing_time` DECIMAL(10,3) DEFAULT 0 COMMENT 'Processing time in seconds',
+      `error_details` TEXT COMMENT 'JSON array of error messages',
+      `file_path` VARCHAR(500) COMMENT 'Original file path for uploads',
+      `preview_data` TEXT COMMENT 'JSON preview of operation data',
+      `scheduled_at` TIMESTAMP NULL COMMENT 'For scheduled operations',
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_user_id (user_id),
+      INDEX idx_created_at (created_at)
+   );");
+
+      // Create operation templates table
+      $conn->query("CREATE TABLE IF NOT EXISTS bulk_templates (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `user_id` INT NOT NULL,
+         `name` VARCHAR(255) NOT NULL,
+         `description` TEXT,
+         `template_data` TEXT NOT NULL COMMENT 'JSON template data',
+         `is_public` BOOLEAN DEFAULT FALSE,
+         `usage_count` INT DEFAULT 0,
+         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+         INDEX idx_user_id (user_id),
+         INDEX idx_public (is_public),
+         INDEX idx_usage (usage_count),
+         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+      // Create bulk operation queue for scheduled operations
+      $conn->query("CREATE TABLE IF NOT EXISTS bulk_queue (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `user_id` INT NOT NULL,
+         `operation_type` VARCHAR(50) NOT NULL,
+         `operation_data` TEXT NOT NULL COMMENT 'JSON operation data',
+         `priority` INT DEFAULT 0 COMMENT 'Higher number = higher priority',
+         `status` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending, processing, completed, failed',
+         `scheduled_at` TIMESTAMP NOT NULL,
+         `started_at` TIMESTAMP NULL,
+         `completed_at` TIMESTAMP NULL,
+         `error_message` TEXT,
+         `retry_count` INT DEFAULT 0,
+         `max_retries` INT DEFAULT 3,
+         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         INDEX idx_user_id (user_id),
+         INDEX idx_status (status),
+         INDEX idx_scheduled (scheduled_at),
+         INDEX idx_priority (priority),
+         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+      // Create bulk operation queue for scheduled operations
+      $conn->query("CREATE TABLE IF NOT EXISTS bulk_queue (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `user_id` INT NOT NULL,
+         `operation_type` VARCHAR(50) NOT NULL,
+         `operation_data` TEXT NOT NULL COMMENT 'JSON operation data',
+         `priority` INT DEFAULT 0 COMMENT 'Higher number = higher priority',
+         `status` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending, processing, completed, failed',
+         `scheduled_at` TIMESTAMP NOT NULL,
+         `started_at` TIMESTAMP NULL,
+         `completed_at` TIMESTAMP NULL,
+         `error_message` TEXT,
+         `retry_count` INT DEFAULT 0,
+      `max_retries` INT DEFAULT 3,
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user_id (user_id),
+      INDEX idx_status (status),
+      INDEX idx_scheduled (scheduled_at),
+      INDEX idx_priority (priority),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+   ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 }
