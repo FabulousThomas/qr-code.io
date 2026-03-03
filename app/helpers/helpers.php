@@ -129,3 +129,64 @@ function imageUpload(string $img_name, string $path)
         flashMsg('success', 'Image Upload Error', 'alert-danger');
     }
 }
+<<<<<<< Updated upstream
+=======
+
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function csrf_input(): void
+{
+    $t = htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8');
+    echo '<input type="hidden" name="csrf_token" value="' . $t . '">';
+}
+
+function csrf_verify($token): bool
+{
+    if (!is_string($token) || empty($_SESSION['csrf_token'])) {
+        return false;
+    }
+    return hash_equals($_SESSION['csrf_token'], $token);
+}
+
+/**
+ * Safely parse JSON request body and return decoded array or null.
+ * Ensures Content-Type is application/json and returns null on errors.
+ */
+function parse_json_request()
+{
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (stripos($contentType, 'application/json') === false) {
+        return null;
+    }
+
+    $raw = file_get_contents('php://input');
+    if (empty($raw)) {
+        return null;
+    }
+
+    $data = json_decode($raw, true);
+    if (!is_array($data)) {
+        return null;
+    }
+
+    return $data;
+}
+
+/**
+ * Return configured admin token from environment if set.
+ */
+function app_admin_token()
+{
+    $t = getenv('APP_ADMIN_TOKEN');
+    if ($t === false) {
+        return null;
+    }
+    return (string) $t;
+}
+>>>>>>> Stashed changes
