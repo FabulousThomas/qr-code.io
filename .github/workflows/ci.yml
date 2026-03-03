@@ -1,0 +1,80 @@
+name: CI - Tests & Linting
+
+on:
+  push:
+    branches: [ main, fixes, develop ]
+  pull_request:
+    branches: [ main, fixes, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: qr_code_test
+          MYSQL_ROOT_PASSWORD: root
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.2
+        extensions: mysqli, pdo, pdo_mysql, imagick
+        tools: composer, phpunit
+
+    - name: Install dependencies
+      run: composer install --no-interaction --prefer-dist
+
+    - name: Run PHPUnit tests
+      run: |
+        if [ -f phpunit.xml ]; then
+          vendor/bin/phpunit
+        else
+          echo "No phpunit.xml found. Skipping tests."
+        fi
+
+    - name: Run PHP Linting
+      run: |
+        find app -name "*.php" -exec php -l {} \;
+
+    - name: Run PHPStan (static analysis)
+      run: |
+        if [ -f phpstan.neon ]; then
+          vendor/bin/phpstan analyse
+        else
+          echo "No phpstan.neon found. Skipping static analysis."
+        fi
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 8.2
+        extensions: mysqli, pdo, pdo_mysql, xdebug
+
+    - name: Install dependencies
+      run: composer install --no-interaction --prefer-dist
+
+    - name: Generate coverage report
+      run: |
+        if [ -f phpunit.xml ]; then
+          vendor/bin/phpunit --coverage-text
+        fi

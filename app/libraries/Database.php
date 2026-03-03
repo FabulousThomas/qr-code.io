@@ -20,10 +20,11 @@ class Database
    public function __construct()
    {
       // Set DSN (DATABASE STRING NAME)
-      $dsn = 'mysql:host=' . $this->host . '; dbname=' . $this->dbname;
+      $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname . ';charset=utf8mb4';
       $options = array(
          PDO::ATTR_PERSISTENT => true,
          PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+         PDO::ATTR_EMULATE_PREPARES => false,
       );
 
       // Create PDO instance
@@ -31,7 +32,11 @@ class Database
          $this->dbh = new PDO($dsn, $this->user, $this->pass, $options);
       } catch (PDOException $e) {
          $this->error = $e->getMessage();
-         echo $this->error;
+         error_log('Database connection error: ' . $this->error);
+         if ((getenv('APP_DEBUG') ?: '0') === '1') {
+            // In debug, you may want to surface a generic message
+            echo 'Database connection failed.';
+         }
       }
    }
 

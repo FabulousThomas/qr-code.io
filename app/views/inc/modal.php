@@ -1,3 +1,174 @@
+<style>
+    .font-color-black,
+    #checkout-email-input,
+    #checkout-email-input::placeholder {
+        color: black !important;
+    }
+
+    /* Cart Modal Dark Theme Fixes */
+    #cartModal .modal-content {
+        background-color: var(--color-dark) !important;
+        border: 1px solid var(--text-dark) !important;
+    }
+
+    #cartModal .modal-header {
+        background-color: var(--bg-dark) !important;
+        border-bottom: 1px solid var(--text-dark) !important;
+    }
+
+    #cartModal .modal-title {
+        color: var(--color-white) !important;
+        font-weight: 600 !important;
+    }
+
+    #cartModal .modal-body {
+        background-color: var(--color-dark) !important;
+        color: var(--color-white) !important;
+    }
+
+    #cartModal .table-dark {
+        background-color: var(--bg-dark) !important;
+        color: var(--color-white) !important;
+    }
+
+    #cartModal .table-dark th,
+    #cartModal .table-dark td {
+        border-color: var(--text-dark) !important;
+        color: var(--color-white) !important;
+    }
+
+    #cartModal .badge {
+        font-weight: 500 !important;
+    }
+
+    #cartModal .cart-summary {
+        background-color: var(--bg-dark) !important;
+        border-color: var(--text-dark) !important;
+    }
+
+    #cartModal .modal-footer {
+        background-color: var(--bg-dark) !important;
+        border-top: 1px solid var(--text-dark) !important;
+    }
+
+    #cartModal .btn-secondary {
+        background-color: var(--text-dark) !important;
+        border-color: var(--text-dark) !important;
+        color: var(--color-white) !important;
+    }
+
+    #cartModal .btn-secondary:hover {
+        background-color: #888888 !important;
+    }
+
+    #cartModal .close span {
+        color: var(--color-white) !important;
+    }
+
+    #cartModal .text-white {
+        color: var(--color-white) !important;
+    }
+
+    #cartModal .text-white-50 {
+        color: rgba(255, 255, 255, 0.5) !important;
+    }
+
+    /* SweetAlert input styling for cart checkout */
+    .swal-content__input {
+        background-color: var(--color-white) !important;
+        color: black !important;
+        border: 1px solid var(--text-dark) !important;
+    }
+
+    /* Customize Modal Dark Theme Fixes */
+    #customize .modal-content {
+        background-color: var(--color-dark) !important;
+        border: 1px solid var(--text-dark) !important;
+    }
+
+    #customize .modal-header {
+        background-color: var(--bg-dark) !important;
+        border-bottom: 1px solid var(--text-dark) !important;
+    }
+
+    #customize .modal-title {
+        color: var(--color-white) !important;
+        font-weight: 600 !important;
+    }
+
+    #customize .modal-body {
+        background-color: var(--color-dark) !important;
+        color: var(--color-white) !important;
+    }
+
+    #customize .form-label {
+        color: var(--color-white) !important;
+        font-weight: 500 !important;
+    }
+
+    #customize .form-control {
+        background-color: var(--bg-dark) !important;
+        border-color: var(--text-dark) !important;
+        color: var(--color-white) !important;
+    }
+
+    #customize .form-control:focus {
+        border-color: var(--color-orange) !important;
+        box-shadow: 0 0 0 0.2rem rgba(245, 183, 89, 0.25) !important;
+    }
+
+    #customize .form-control::placeholder {
+        color: var(--text-dark) !important;
+    }
+
+    #customize .close span {
+        color: var(--color-white) !important;
+    }
+
+    #customize .text-danger {
+        color: #dc3545 !important;
+    }
+
+    #customize .card-body {
+        background-color: var(--bg-dark) !important;
+        border: 1px solid var(--text-dark) !important;
+    }
+
+    // Placeholder: initialize OPay payment using their Checkout API.
+    // You need to plug in your OPay public key / config and follow their docs
+    // for opening the payment page. After a successful payment, the frontend
+    // should call the Barcode::verifyOpayPayment endpoint to unlock codes.
+    function initializeOpayPayment(email, amount, itemCount) {
+
+        // Example stub: post to a backend route that creates an OPay transaction
+        fetch('<?= URLROOT ?>/barcode/initOpayPayment', {
+
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+
+            ,
+            body: JSON.stringify({
+                email, amount, itemCount
+            })
+
+    }) .then(response=> response.json()) .then(data=> {
+            if (data.success && data.paymentUrl) {
+                window.location.href=data.paymentUrl; // Redirect to OPay checkout
+            }
+
+            else {
+                swal('Error', data.message || 'Unable to start OPay payment.', 'error');
+            }
+
+        }) .catch(error=> {
+            console.error('OPay init error:', error);
+            swal('Error', 'An error occurred starting OPay payment.', 'error');
+        });
+    }
+</style>
+
 <!-- Modal for customizing QR code -->
 <div class="modal fade" id="customize" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
     aria-labelledby="customizeLabel" aria-hidden="true">
@@ -13,6 +184,7 @@
                 <div class="row d-non">
                     <div class="col-md-8">
                         <form action="" method="POST" id="customizeForm" enctype="multipart/form-data">
+                            <?php csrf_input(); ?>
                             <div class="row">
                                 <div class="col-md-6 mb-2">
                                     <label for="foregroundColor">Foreground Color:</label>
@@ -85,14 +257,17 @@
                     </div>
                     <div class="col-md-4">
                         <div class="card-body text-center border py-4">
-                            <img id="qrCodePreview" src="<?= $_SESSION['qrImageData'] ?? '' ?>" alt="QR Code Preview"
-                                class="img-fluid" style="width: 250px;">
-
-                            <div class="d-flex justify-content-center mt-2">
-                                <a href="<?= $_SESSION['qrImageData'] ?? '' ?>" class="btn btn-orange rounded-0"
-                                    download="qrcode.png">
-                                    <i class="las la-download las-sm"></i> Download QR Code
-                                </a>
+                            <div class="position-relative d-inline-block">
+                                <img id="qrCodePreview" src="<?= $_SESSION['qrImageData'] ?? '' ?>"
+                                    alt="QR Code Preview" class="img-fluid"
+                                    style="width: 250px; filter: blur(8px); pointer-events: none;">
+                                <div class="position-absolute top-50 start-50 translate-middle text-center bg-white shadow rounded p-3"
+                                    style="width: 210px;">
+                                    <i class="las la-lock text-warning" style="font-size: 2.2rem;"></i>
+                                    <p class="fw-semibold mb-1">Preview Locked</p>
+                                    <p class="text-muted small mb-0">Apply your changes and complete checkout to unlock
+                                        the clear image.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -142,7 +317,8 @@
                                         <td class="fw-semibold">Item #<?= ($index + 1) ?></td>
                                         <td>
                                             <?php if (!empty($item['type'])): ?>
-                                                <span class="badge bg-info text-uppercase"><?= htmlspecialchars($item['type']) ?></span>
+                                                <span
+                                                    class="badge bg-info text-uppercase"><?= htmlspecialchars($item['type']) ?></span>
                                             <?php else: ?>
                                                 <span class="text-white-50">—</span>
                                             <?php endif; ?>
@@ -165,7 +341,8 @@
                                                         <span class="fw-semibold">QR Code</span>
                                                         <span class="badge bg-dark border border-warning text-warning">Locked</span>
                                                         <?php if (!empty($item['randomGenerated'])): ?>
-                                                            <span class="badge bg-warning text-dark">Random ×<?= (int) ($item['randomGeneratedCount'] ?? 1) ?></span>
+                                                            <span class="badge bg-warning text-dark">Random
+                                                                ×<?= (int) ($item['randomGeneratedCount'] ?? 1) ?></span>
                                                         <?php endif; ?>
                                                     </div>
                                                     <div class="text-white-50 d-flex flex-wrap gap-2 mt-1">
@@ -186,12 +363,16 @@
                                                 ?>
                                                 <div class="text-white small">
                                                     <div class="d-flex flex-wrap align-items-center gap-2">
-                                                        <span class="badge" style="background: <?= htmlspecialchars($lineColor) ?>; color: <?= $lineColor === '#FFFFFF' ? '#000' : '#FFF' ?>;">Line</span>
-                                                        <span class="badge" style="background: <?= htmlspecialchars($backgroundColor) ?>; color: <?= $backgroundColor === '#FFFFFF' ? '#000' : '#FFF' ?>;">Bg</span>
-                                                        <span class="badge bg-secondary"><?= htmlspecialchars($width) ?>×<?= htmlspecialchars($height) ?>px</span>
+                                                        <span class="badge"
+                                                            style="background: <?= htmlspecialchars($lineColor) ?>; color: <?= $lineColor === '#FFFFFF' ? '#000' : '#FFF' ?>;">Line</span>
+                                                        <span class="badge"
+                                                            style="background: <?= htmlspecialchars($backgroundColor) ?>; color: <?= $backgroundColor === '#FFFFFF' ? '#000' : '#FFF' ?>;">Bg</span>
+                                                        <span
+                                                            class="badge bg-secondary"><?= htmlspecialchars($width) ?>×<?= htmlspecialchars($height) ?>px</span>
                                                         <span class="badge bg-dark border border-warning text-warning">Locked</span>
                                                         <?php if (!$displayValue): ?>
-                                                            <span class="badge bg-dark border border-secondary text-white-50">Value Hidden</span>
+                                                            <span class="badge bg-dark border border-secondary text-white-50">Value
+                                                                Hidden</span>
                                                         <?php endif; ?>
                                                         <?php if (!empty($item['randomGenerated'])): ?>
                                                             <span class="badge bg-warning text-dark">Random ×<?= $barcodeCount ?></span>
@@ -207,7 +388,8 @@
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
-                                            <button type="button" class="btn btn-danger btn-sm remove-item-btn" onclick="removeCartItem(<?= $index ?>)" title="Remove from cart">
+                                            <button type="button" class="btn btn-danger btn-sm remove-item-btn"
+                                                onclick="removeCartItem(<?= $index ?>)" title="Remove from cart">
                                                 <i class="las la-trash"></i>
                                             </button>
                                         </td>
@@ -282,7 +464,7 @@
                                         <small class='d-block text-white'>Total Amount</small>
                                         <strong style='font-size: 1.4rem;'>₦<?= number_format($totalAmount) ?></strong>
                                         <?php if ($discountAmount > 0): ?>
-                                            <small class='d-block text-success'>Includes ₦<?= number_format($discountAmount) ?> discount (20% off up to 10 random barcodes)</small>
+                                            <small class='d-block text-success'>Includes 20% off discount</small>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -294,8 +476,12 @@
             <div class="modal-footer border-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 <?php if (!empty($_SESSION['cart'])): ?>
-                    <button type="button" class="btn btn-orange" id="checkoutBtn" onclick="proceedToCheckout()">
-                        <i class="las la-shopping-cart las-sm"></i> Proceed to Checkout
+                    <button type="button" class="btn btn-orange me-2" id="checkoutBtn"
+                        onclick="proceedToCheckout('paystack')">
+                        <i class="las la-shopping-cart las-sm"></i> Pay with Paystack
+                    </button>
+                    <button type="button" class="btn btn-success" id="opayCheckoutBtn" onclick="proceedToCheckout('opay')">
+                        <i class="las la-credit-card las-sm"></i> Pay with OPay
                     </button>
                 <?php endif; ?>
             </div>
@@ -304,7 +490,7 @@
 </div>
 
 <script>
-    function proceedToCheckout() {
+    function proceedToCheckout(provider = 'paystack') {
         // Calculate total amount from cart
         const cartItems = <?= json_encode($_SESSION['cart'] ?? []) ?>;
 
@@ -317,7 +503,7 @@
         const cartModal = cartModalElement ? (bootstrap.Modal.getInstance(cartModalElement) || bootstrap.Modal.getOrCreateInstance(cartModalElement)) : null;
 
         const launchEmailPrompt = () => {
-            // Calculate totals with distinct pricing
+            // Calculate totals with distinct pricing (mirror PHP summary logic)
             let totalQrCodes = 0;
             let totalBarcodes = 0;
             let randomDiscountEligible = 0;
@@ -330,7 +516,7 @@
                     totalBarcodes += count;
 
                     if (item.randomGenerated) {
-                        const availableCap = Math.max(0, 10 - randomDiscountEligible);
+                        const availableCap = Math.max(0, 20 - randomDiscountEligible);
                         if (availableCap > 0) {
                             const eligibleCount = Math.min(
                                 count,
@@ -347,13 +533,13 @@
             const barcodePrice = 700; // ₦700 per barcode
             const totalItems = totalQrCodes + totalBarcodes;
             const baseAmount = (totalQrCodes * qrPrice) + (totalBarcodes * barcodePrice);
-            const discountAmount = Math.round(randomDiscountEligible * barcodePrice * 0.10);
+            const discountAmount = Math.round(randomDiscountEligible * barcodePrice * 0.20);
             const totalAmount = Math.max(0, baseAmount - discountAmount);
 
             swal({
                 title: "Enter Your Email",
                 text: discountAmount > 0
-                    ? `Total: ₦${totalAmount.toLocaleString()} for ${totalItems} item(s) (₦${discountAmount.toLocaleString()} discount applied)`
+                    ? `Total: ₦${totalAmount.toLocaleString()} for ${totalItems} item(s) (20% discount applied)`
                     : `Total: ₦${totalAmount.toLocaleString()} for ${totalItems} item(s)`,
                 content: "input",
                 buttons: {
@@ -400,8 +586,12 @@
                     cartModal.hide();
                 }
 
-                // Initialize Paystack payment
-                initializePaystackPayment(email, totalAmount, totalItems);
+                // Initialize chosen payment provider
+                if (provider === 'opay') {
+                    initializeOpayPayment(email, totalAmount, totalItems);
+                } else {
+                    initializePaystackPayment(email, totalAmount, totalItems);
+                }
             });
 
             // Configure and focus the SweetAlert input once it is rendered
@@ -413,7 +603,7 @@
                     inp.required = true;
                     inp.id = 'checkout-email-input';
                     inp.autocomplete = 'email';
-                    inp.classList.add('form-control shadow-none text-dark');
+                    inp.classList.add('form-control shadow-none font-color-black');
                     inp.style.padding = '10px';
                     // inp.style.border = '1px solid #ddd';
                     inp.style.borderRadius = '4px';
@@ -447,7 +637,7 @@
     }
 
     function initializePaystackPayment(email, amount, itemCount) {
-        const paystackPublicKey = "pk_test_your_key_here"; // Replace with your Paystack Public Key
+        const paystackPublicKey = "<?= htmlspecialchars($_ENV['PAYSTACK_PUBLIC'] ?? '') ?>";
 
         const handler = PaystackPop.setup({
             key: paystackPublicKey,

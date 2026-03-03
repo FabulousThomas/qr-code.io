@@ -105,17 +105,37 @@ function filteration(array $type): array
  */
 function addLogo($logoName, $folder)
 {
-    $ext = pathinfo($_FILES[$logoName]['name'] ?? '', PATHINFO_EXTENSION);
-    $image = 'QRL-' . random_int(11111, 99999) . '.' . $ext;
-
-    $path = "images/$folder/";
-    if (move_uploaded_file($_FILES[$logoName]['tmp_name'] ?? '', $path . $image)) {
-        alert('success', 'Image Upload Error');
-        return $image;
-    } else {
-        alert('success', 'Image Upload Error');
+    if (empty($_FILES[$logoName]['name']) || !is_uploaded_file($_FILES[$logoName]['tmp_name'] ?? '')) {
+        alert('message', 'No image uploaded');
         return null;
     }
+
+    $allowed = ['png','jpg','jpeg','svg'];
+    $ext = strtolower(pathinfo($_FILES[$logoName]['name'], PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowed, true)) {
+        alert('message', 'Unsupported image type');
+        return null;
+    }
+
+    $size = (int)($_FILES[$logoName]['size'] ?? 0);
+    if ($size <= 0 || $size > 2 * 1024 * 1024) {
+        alert('message', 'Image too large');
+        return null;
+    }
+
+    $image = 'QRL-' . random_int(11111, 99999) . '.' . $ext;
+    $path = 'images/' . trim($folder, '/\\') . '/';
+    if (!is_dir($path)) {
+        @mkdir($path, 0755, true);
+    }
+
+    if (move_uploaded_file($_FILES[$logoName]['tmp_name'], $path . $image)) {
+        alert('success', 'Image uploaded successfully');
+        return $image;
+    }
+
+    alert('message', 'Image Upload Error');
+    return null;
 }
 
 function imageUpload(string $img_name, string $path)
@@ -129,8 +149,6 @@ function imageUpload(string $img_name, string $path)
         flashMsg('success', 'Image Upload Error', 'alert-danger');
     }
 }
-<<<<<<< Updated upstream
-=======
 
 function csrf_token(): string
 {
@@ -153,40 +171,3 @@ function csrf_verify($token): bool
     }
     return hash_equals($_SESSION['csrf_token'], $token);
 }
-
-/**
- * Safely parse JSON request body and return decoded array or null.
- * Ensures Content-Type is application/json and returns null on errors.
- */
-function parse_json_request()
-{
-    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-    if (stripos($contentType, 'application/json') === false) {
-        return null;
-    }
-
-    $raw = file_get_contents('php://input');
-    if (empty($raw)) {
-        return null;
-    }
-
-    $data = json_decode($raw, true);
-    if (!is_array($data)) {
-        return null;
-    }
-
-    return $data;
-}
-
-/**
- * Return configured admin token from environment if set.
- */
-function app_admin_token()
-{
-    $t = getenv('APP_ADMIN_TOKEN');
-    if ($t === false) {
-        return null;
-    }
-    return (string) $t;
-}
->>>>>>> Stashed changes

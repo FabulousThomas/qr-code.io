@@ -1,47 +1,213 @@
 <?php
-session_start();
+// Secure session cookies and start session
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['SERVER_PORT'] ?? '80') == 443);
+if (session_status() === PHP_SESSION_NONE) {
+   session_set_cookie_params([
+      'lifetime' => 0,
+      'path' => '/',
+      'domain' => '',
+      'secure' => $isHttps,
+      'httponly' => true,
+      'samesite' => 'Lax',
+   ]);
+   session_start();
+}
 
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'qrcode');
+define('DB_HOST', $_ENV['DB_HOST'] ?: 'localhost');
+define('DB_USER', $_ENV['DB_USER'] ?: 'root');
+define('DB_PASS', $_ENV['DB_PASS'] ?: '');
+define('DB_NAME', $_ENV['DB_NAME'] ?: 'qrcode');
 
 // SITE PARAMS
 // App root directory
 define("APPROOT", dirname(dirname(__FILE__)));
-// Url root
+// Url root - use dynamic IP for QR code tracking to work from phones
+$serverIP = $_SERVER['SERVER_ADDR'] ?? '127.0.0.1';
+if ($serverIP === '127.0.0.1') {
+    $serverIP = getHostByName(getHostName());
+}
+$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
 define("URLROOT", "http://localhost/qr-code.io");
 // Site Name
-define("SITENAME", "QRCode Generator");
+define("SITENAME", "QBhub.io");
 // App version
 define('APPVERSION', '1.0.0');
 
-// CHECK CONNECTION
-if (!$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS)) {
-   die('CONNECTION FAILED');
-}
+// Optional local auto-migration (guarded)
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? 'localhost', ['localhost', '127.0.0.1'], true);
+$autoMigrate = $_ENV['AUTO_MIGRATE'] !== false ? (bool) intval($_ENV['AUTO_MIGRATE']) : $isLocal;
+if ($autoMigrate) {
+   if (!$conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS)) {
+      die('CONNECTION FAILED');
+   }
 
-// CREATE DATABASE AND TABLES
-if ($conn->query("CREATE DATABASE IF NOT EXISTS qrcode")) {
-   $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+   if ($conn->query("CREATE DATABASE IF NOT EXISTS " . DB_NAME)) {
+      $conn = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 
-   // $conn->query("CREATE TABLE IF NOT EXISTS `qr-codes` (`id` INT NOT NULL AUTO_INCREMENT , `qrtext` TEXT NOT NULL , `qrimage` VARCHAR(250) NOT NULL , `date` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP , PRIMARY KEY (`id`)) ENGINE = InnoDB;");
-   
-   // Create codes table for storing barcodes and QR codes
-   $conn->query("CREATE TABLE IF NOT EXISTS `codes` (
-      `id` INT NOT NULL AUTO_INCREMENT,
-      `type` ENUM('barcode', 'qrcode') NOT NULL DEFAULT 'barcode',
-      `value` TEXT NOT NULL,
-      `format` VARCHAR(50) DEFAULT NULL,
-      `image_data` TEXT DEFAULT NULL,
-      `image_path` VARCHAR(500) DEFAULT NULL,
-      `customization_options` TEXT DEFAULT NULL,
-      `user_id` INT DEFAULT NULL,
-      `session_id` VARCHAR(255) DEFAULT NULL,
-      `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (`id`),
-      KEY `idx_session` (`session_id`),
-      KEY `idx_user` (`user_id`),
-      KEY `idx_type` (`type`)
-   ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+      // Create codes table for storing barcodes and QR codes
+      $conn->query("CREATE TABLE IF NOT EXISTS `codes` (
+         `id` INT NOT NULL AUTO_INCREMENT,
+         `type` ENUM('barcode', 'qrcode') NOT NULL DEFAULT 'barcode',
+         `value` TEXT NOT NULL,
+         `format` VARCHAR(50) DEFAULT NULL,
+         `user_id` INT DEFAULT NULL,
+         `email` VARCHAR(255) DEFAULT NULL,
+         `session_id` VARCHAR(255) DEFAULT NULL,
+         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         `customization_options` TEXT DEFAULT NULL,
+         `image_data` TEXT DEFAULT NULL,
+         `image_path` VARCHAR(500) DEFAULT NULL,
+         PRIMARY KEY (`id`),
+         KEY `idx_session` (`session_id`),
+         KEY `idx_user` (`user_id`),
+         KEY `idx_type` (`type`)
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Create users table for persisting customers by email
+      $conn->query("CREATE TABLE IF NOT EXISTS `users` (
+         `id` INT NOT NULL AUTO_INCREMENT,
+         `name` VARCHAR(255) NOT NULL,
+         `username` VARCHAR(255) NOT NULL,
+         `email` VARCHAR(255) NOT NULL,
+         `password` VARCHAR(255) NOT NULL,
+         `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+         PRIMARY KEY (`id`),
+         UNIQUE KEY `uniq_email` (`email`)
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Create qr_code_scans table for analytics tracking
+      $conn->query("CREATE TABLE IF NOT EXISTS `qr_code_scans` (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `qr_code_id` INT NOT NULL,
+         `scanned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         `ip_address` VARCHAR(45),
+         `user_agent` TEXT,
+         `referrer` TEXT,
+         `country` VARCHAR(100),
+         `city` VARCHAR(100),
+         `device_type` VARCHAR(50),
+         `browser` VARCHAR(100),
+         FOREIGN KEY (`qr_code_id`) REFERENCES `codes`(`id`) ON DELETE CASCADE,
+         INDEX `idx_qr_code_id` (`qr_code_id`),
+         INDEX `idx_scanned_at` (`scanned_at`),
+         INDEX `idx_ip_address` (`ip_address`)
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Create qr_analytics summary table for faster reporting
+      $conn->query("CREATE TABLE IF NOT EXISTS `qr_analytics` (
+         `qr_code_id` INT PRIMARY KEY,
+         `scan_count` INT DEFAULT 0,
+         `unique_scans` INT DEFAULT 0,
+         `first_scanned` TIMESTAMP NULL,
+         `last_scanned` TIMESTAMP NULL,
+         `last_updated` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+         FOREIGN KEY (`qr_code_id`) REFERENCES `codes`(`id`) ON DELETE CASCADE
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+
+      // Add missing columns to qr_analytics table if they don't exist
+      $conn->query("ALTER TABLE `qr_analytics` 
+         ADD COLUMN IF NOT EXISTS `user_agent` TEXT NULL,
+         ADD COLUMN IF NOT EXISTS `ip_address` VARCHAR(45) NULL,
+         ADD COLUMN IF NOT EXISTS `country` VARCHAR(100) NULL,
+         ADD COLUMN IF NOT EXISTS `city` VARCHAR(100) NULL,
+         ADD COLUMN IF NOT EXISTS `referrer` TEXT NULL");
+
+      // Create qr_scan_events table for detailed scan tracking
+      $conn->query("CREATE TABLE IF NOT EXISTS `qr_scan_events` (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `qr_code_id` INT NOT NULL,
+         `event_type` VARCHAR(50) NOT NULL DEFAULT 'scan',
+         `scanned_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         `ip_address` VARCHAR(45),
+         `user_agent` TEXT,
+         `referrer` TEXT,
+         `country` VARCHAR(100),
+         `city` VARCHAR(100),
+         `device_type` VARCHAR(50),
+         `browser` VARCHAR(100),
+         FOREIGN KEY (`qr_code_id`) REFERENCES `codes`(`id`) ON DELETE CASCADE,
+         INDEX `idx_qr_code_id` (`qr_code_id`),
+         INDEX `idx_scanned_at` (`scanned_at`),
+         INDEX `idx_event_type` (`event_type`)
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4;");
+   }
+
+   // Create bulk operations table with enhanced schema
+   $conn->query("CREATE TABLE IF NOT EXISTS bulk_operations (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `user_id` INT NOT NULL,
+      `type` VARCHAR(50) NOT NULL COMMENT 'upload, delete, archive, generate',
+      `count` INT NOT NULL COMMENT 'Number of items processed',
+      `status` VARCHAR(20) NOT NULL DEFAULT 'success' COMMENT 'success, failed, partial, cancelled',
+      `processing_time` DECIMAL(10,3) DEFAULT 0 COMMENT 'Processing time in seconds',
+      `error_details` TEXT COMMENT 'JSON array of error messages',
+      `file_path` VARCHAR(500) COMMENT 'Original file path for uploads',
+      `preview_data` TEXT COMMENT 'JSON preview of operation data',
+      `scheduled_at` TIMESTAMP NULL COMMENT 'For scheduled operations',
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_user_id (user_id),
+      INDEX idx_created_at (created_at)
+   );");
+
+      // Create operation templates table
+      $conn->query("CREATE TABLE IF NOT EXISTS bulk_templates (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `user_id` INT NOT NULL,
+         `name` VARCHAR(255) NOT NULL,
+         `description` TEXT,
+         `template_data` TEXT NOT NULL COMMENT 'JSON template data',
+         `is_public` BOOLEAN DEFAULT FALSE,
+         `usage_count` INT DEFAULT 0,
+         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+         INDEX idx_user_id (user_id),
+         INDEX idx_public (is_public),
+         INDEX idx_usage (usage_count),
+         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+      // Create bulk operation queue for scheduled operations
+      $conn->query("CREATE TABLE IF NOT EXISTS bulk_queue (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `user_id` INT NOT NULL,
+         `operation_type` VARCHAR(50) NOT NULL,
+         `operation_data` TEXT NOT NULL COMMENT 'JSON operation data',
+         `priority` INT DEFAULT 0 COMMENT 'Higher number = higher priority',
+         `status` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending, processing, completed, failed',
+         `scheduled_at` TIMESTAMP NOT NULL,
+         `started_at` TIMESTAMP NULL,
+         `completed_at` TIMESTAMP NULL,
+         `error_message` TEXT,
+         `retry_count` INT DEFAULT 0,
+         `max_retries` INT DEFAULT 3,
+         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+         INDEX idx_user_id (user_id),
+         INDEX idx_status (status),
+         INDEX idx_scheduled (scheduled_at),
+         INDEX idx_priority (priority),
+         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+      // Create bulk operation queue for scheduled operations
+      $conn->query("CREATE TABLE IF NOT EXISTS bulk_queue (
+         `id` INT AUTO_INCREMENT PRIMARY KEY,
+         `user_id` INT NOT NULL,
+         `operation_type` VARCHAR(50) NOT NULL,
+         `operation_data` TEXT NOT NULL COMMENT 'JSON operation data',
+         `priority` INT DEFAULT 0 COMMENT 'Higher number = higher priority',
+         `status` VARCHAR(20) DEFAULT 'pending' COMMENT 'pending, processing, completed, failed',
+         `scheduled_at` TIMESTAMP NOT NULL,
+         `started_at` TIMESTAMP NULL,
+         `completed_at` TIMESTAMP NULL,
+         `error_message` TEXT,
+         `retry_count` INT DEFAULT 0,
+      `max_retries` INT DEFAULT 3,
+      `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user_id (user_id),
+      INDEX idx_status (status),
+      INDEX idx_scheduled (scheduled_at),
+      INDEX idx_priority (priority),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+   ) ENGINE = InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 }
